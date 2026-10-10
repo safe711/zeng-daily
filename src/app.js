@@ -1,0 +1,455 @@
+import {dayKey,initialState,parseBackup,points,daily,completeTask,taskInDateRange,taskReminders,RITUAL_KINDS,RITUAL_NAMES} from './model.js';
+import {readState,writeState} from './storage.js';
+import {createHoldController} from './hold.js';
+import {ritualGreeting,ritualInstruction,completeRitual,ritualEvidence} from './ritual.js';
+import {getPhoto,listPhotos,clearMedia,latestRitualPhoto,capturePhoto,syncPhoto,getReport,listReports} from './photos.js';
+import {archiveReport,syncPendingReports,resetReportQueue} from './reports.js';
+import {ritualReport,reportText,buildShareCard,sharePrepared} from './share.js';
+import {mountSubscription} from './subscriptionview.js';
+import {subscriptionStatus} from './subscription.js';
+import {isStaticHosting,mediaStatus} from './hosting.js';
+const staticHosting=isStaticHosting();
+const content = document.querySelector('#content');
+const seal=document.querySelector('.seal');
+seal.textContent='';seal.setAttribute('role','img');seal.setAttribute('aria-label','行书曾字');
+const message = document.querySelector('#message');
+let state;
+let storageFailed = false;
+try { state = readState(); } catch { state = initialState(); storageFailed = true; }
+let page = '今日';
+let hidden = false;
+let ritualKind = null;
+let cancelHold = ()=>{};
+let unmountSubscription=()=>{};
+let currentPhoto=null;
+let photoKey='';
+let photoLoading=false;
+let cameraStream=null;
+let cameraRequest=0;
+let cameraStarting=false;
+let photoCapturing=false;
+let photoUrls=[];
+let nasToken='';
+let syncingPhotos=new Set();
+try{if(!staticHosting)nasToken=sessionStorage.getItem('daily-nas-token')||'';}catch{}
+const ritualNames=RITUAL_NAMES;
+let reportOpen=false;
+let preparedShare=null;
+let preparedKey='';
+let reportGeneration=0;
+let preparingKey='';
+let preparingShare=null;
+const escape = value => String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const input = (name,label,value='',type='text') => `<label>${label}<input name="${name}" type="${type}" value="${escape(value)}" maxlength="10000" required></label>`;
+const area = (name,label,value='') => `<label>${label}<textarea name="${name}" maxlength="10000" required>${escape(value)}</textarea></label>`;
+const list = items => items.length ? items.map(item=>`<article><small>${escape(item.date)}</small><p>${escape(item.text)}</p></article>`).join('') : '<p class="muted">尚无记录。</p>';
+function taskFields(task={}) {
+  return `<label>起始日期（可留空）<input name="startDate" type="date" value="${escape(task.startDate || '')}"></label><label>结束日期（可留空，含当日）<input name="endDate" type="date" value="${escape(task.endDate || '')}"></label><label>工作命令（自行填写）<textarea name="command" maxlength="10000">${escape(task.command || '')}</textarea></label><label class="check"><input name="dailyReminder" type="checkbox" ${task.dailyReminder?'checked':''}>每日强提醒（仅应用内）</label><p class="muted">在起止日期内，每日打开应用都会醒目提示未完成的已开展任务；完成、归档或暂停后停止。不会自动生成每日任务，也没有关闭后的定时推送。</p>`;
+}
+function reminderPanel() {
+  const tasks=taskReminders(state);
+  if (!tasks.length) return '';
+  return `<section class="task-reminders" role="region" aria-label="每日强提醒"><h3>每日强提醒 · ${tasks.length} 项待完成</h3>${tasks.map(task=>`<div><strong>${escape(task.title)}</strong><p>${escape(task.command || task.note)}</p><small>${task.confirmed?'用户已确认要求':'未确认为要求'}</small></div>`).join('')}<p class="muted">仅应用内提示 · 完成后停止</p><button data-page="任务">查看任务</button></section>`;
+}
+function notify(text) { message.textContent = text; }
+function commit(change) {
+  if (storageFailed) throw Error('本地数据读取失败，请先导出原始数据或恢复备份，避免覆盖。');
+  const draft = structuredClone(state);
+  change(draft);
+  writeState(draft);
+  state = draft;
+  render();
+  notify('已保存到本机');
+  if(ritualReport(state).allComplete)prepareReport().catch(error=>notify(`汇总图片待生成：${error.message}`));
+}
+function render() {
+  unmountSubscription();unmountSubscription=()=>{};
+  cancelHold();
+  stopCamera();
+  for(const url of photoUrls)URL.revokeObjectURL(url);
+  photoUrls=[];
+  document.querySelector('nav').innerHTML = ['今日','任务','记录','积分','档案','订阅','隐私'].map(name=>`<button data-page="${name}" aria-current="${page===name?'page':'false'}">${name==='今日'?'礼仪':name}</button>`).join('');
+  document.querySelector('h1').textContent = hidden ? '日课' : '私人日课';
+  if (hidden) { content.innerHTML='<section><h2>内容已隐去</h2><p>轻触继续查看私人日课。</p><button data-action="reveal">继续查看</button><p class="muted">这是界面遮挡，不是密码或数据加密。</p></section>'; return; }
+  const today = state.days[dayKey()] || {};
+  const paused = state.settings.paused;
+  const status = navigator.onLine ? '本地模式' : '离线模式';
+  const heading = `<div class="eyebrow">${dayKey()} · ${status}${paused?' · 已暂停':''}</div><h2>${page==='今日'?'每日礼仪':page==='订阅'?'订阅挡灾':page}</h2>`;
+  let body = '';
+  if(page==='今日') {
+    const completed=RITUAL_KINDS.filter(kind=>today[kind]!==undefined).length;
+    const earned=state.ledger.filter(entry=>entry.date===dayKey()).reduce((total,entry)=>total+entry.points,0);
+    body = `<section class="daily-overview"><small>今日忠诚积分</small><div class="score">${earned}</div><small>累计 ${points(state)} 分</small><progress value="${completed}" max="4" aria-label="每日礼仪完成进度"></progress><p>每日礼仪完成 ${completed} / 4</p></section><h3>每日礼仪</h3>`;
+    for(const kind of RITUAL_KINDS) body += `<button class="ritual-card ${today[kind]!==undefined?'is-complete':''}" data-action="open-ritual" data-kind="${kind}"><span class="ritual-dot" aria-hidden="true">${today[kind]!==undefined?'✓':'○'}</span><span class="ritual-card-title"><strong>${ritualNames[kind]}</strong><small>${today[kind]!==undefined?`完成于 ${escape(ritualEvidence(today,kind).completedTime||'时间未记录')}`:escape(state.settings[kind]||'提醒时间未设置')}</small></span><span class="ritual-card-status">${today[kind]!==undefined?'已完成':paused?'已暂停':'待完成'}</span><span aria-hidden="true">›</span></button>`;
+    body += '<p class="muted home-note">礼仪每日记录；洗鞋等手动事项请到“任务”管理。</p><section class="daily-share"><h3>今日礼仪汇总</h3><p>请安文本、打卡缩略图与每段完成时间，整理为一张分享卡。</p><button data-action="open-report">预览礼仪汇总</button><button data-action="share-day" disabled>分享至微信</button><p class="muted">四项礼仪完成后解锁分享。在系统分享菜单选择微信，再确认接收人。</p></section>';
+  }
+  if(page==='任务') body = `<p class="muted">“已开展”描述事实；“已确认要求”仅由你明确勾选。可能的赏赐不会自动成为任务或嘉奖。</p>${state.tasks.map(task=>`<article><h3>${escape(task.title)}</h3><small>${{active:'已开展',possible:'尚未发生 / 可能事项',archived:'已归档'}[task.status]} · ${task.confirmed?'用户已确认要求':'未确认为要求'}${task.done?' · 已完成':''}</small><p>${escape(task.note)}</p><p>起始：${escape(task.startDate || '未设置')} · 结束：${escape(task.endDate || '未设置')}</p><p>工作命令：${escape(task.command || '未填写')}</p><small>每日强提醒：${task.dailyReminder?'开启（仅应用内）':'关闭'}${!taskInDateRange(task)?' · 当前不在任务日期内':''}</small>${task.status==='active'&&!task.done?`<button data-action="complete" data-id="${escape(task.id)}" ${paused||!taskInDateRange(task)?'disabled':''}>记录完成 · +3</button>`:''}<button data-action="edit" data-id="${escape(task.id)}">编辑</button><button data-action="archive" data-id="${escape(task.id)}">归档</button></article>`).join('')}<section><h3>新增文字任务 / 可能事项</h3><form data-form="task">${input('title','标题')}${area('note','具体内容')}${taskFields()}<label>状态<select name="status"><option value="active">已开展</option><option value="possible">尚未发生 / 可能事项</option></select></label><label class="check"><input name="confirmed" type="checkbox">我明确确认以上文字及工作命令为要求</label><button ${paused?'disabled':''}>保存</button></form></section>`;
+  if(page==='记录') body = `<form data-form="record">${area('text','侍奉记录 / 文字角色扮演')}<button ${paused?'disabled':''}>保存记录</button></form>${list([...state.records].reverse())}`;
+  if(page==='积分') body = `<section><small>忠诚积分 · 虚拟计分</small><div class="score">${points(state)}</div><p>请安与复命各 +2，已开展任务完成 +3。警告不自动扣分。</p></section><form data-form="ledger"><label>类型<select name="kind"><option value="reward">虚拟嘉奖</option><option value="warning">虚拟警告</option></select></label>${input('points','分值（-1000 至 1000）','0','number')}${area('text','说明')}<button ${paused?'disabled':''}>记录虚拟反馈</button></form>${list([...state.ledger].reverse().map(entry=>({...entry,text:`${entry.kind==='warning'?'虚拟警告':entry.kind==='reward'?'虚拟嘉奖':'积分'} ${entry.points>=0?'+':''}${entry.points} · ${entry.text}`})))}`;
+  if(page==='档案') body = `<form data-form="profile">${input('name','个人称呼',state.profile.name)}${area('notes','档案 / 自定边界',state.profile.notes)}<button>保存档案</button></form><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 NAS 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 NAS。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${list(Object.entries(state.days).sort(([first],[second])=>second.localeCompare(first)).map(([date,entry])=>({date,text:RITUAL_KINDS.map(kind=>`${ritualNames[kind]}：${entry[kind]??'未记录'}${entry[kind]!==undefined?`\n完成时间：${ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'}`:''}`).join('\n\n')+(entry.legacyEvening!==undefined?`\n\n晚间复命（旧记录）：${entry.legacyEvening}`:'')})))}`;
+  if(page==='隐私') body = `<section><h3>本机与备份</h3><p>无账号、无云同步、无统计追踪。浏览器清理、系统回收或更换网址可能丢失本地数据，请定期导出。</p><p>备份为明文 JSON，请自行妥善保管。界面隐去不等于加密。</p><button data-action="export">导出备份</button><label>导入备份（覆盖当前数据）<input id="import" type="file" accept=".json,application/json"></label>${storageFailed?'<button data-action="raw">导出原始本地数据</button><p>读取异常，已阻止自动覆盖。</p>':''}<button data-action="persist">请求保留本地存储</button></section><form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><p>主屏幕显示名称为“日课”。此版本没有推送服务器，也没有后台定时通知。</p></section><section><h3>清空数据</h3><button class="danger" data-action="clear">清空本机全部记录</button></section>`;
+  if(reportOpen && page==='今日'){renderReport();return;}
+  if(ritualKind && page==='今日') {renderRitual();return;}
+  content.innerHTML = heading + (page==='任务'?reminderPanel():'') + body;
+  if(staticHosting&&page==='今日')content.querySelector('h2').insertAdjacentHTML('afterend','<section><h3>安装到 iPhone</h3><p>用 Safari 打开本页 → 分享 → 添加到主屏幕，名称“日课”。首次联网打开会自动准备离线缓存，但不会自动安装图标。</p><p class="muted">网页版：记录和图片仅在本机；不连接 NAS、不自动扣款。</p></section>');
+  if(page==='订阅')unmountSubscription=mountSubscription(content,state,{commit,notify});
+  if(page==='今日'&&!ritualKind&&!reportOpen){
+    const subscription=subscriptionStatus(state.subscription,dayKey());
+    if(['due-soon','expired','pending-signature'].includes(subscription.code))content.insertAdjacentHTML('beforeend',`<section class="subscription-reminder"><h3>订阅 · ${escape(subscription.label)}</h3><p>${subscription.renewalDate?`续费日期 ${escape(subscription.renewalDate)} · `:''}仅本人自记，未核实到账。无自动扣款。</p><button data-page="订阅">查看订阅与签字</button></section>`);
+  }
+  if(page==='今日' && RITUAL_KINDS.every(kind=>today[kind]!==undefined))prepareReport().catch(error=>notify(error.message));
+  if(page==='隐私') {
+    content.querySelector('#offline').insertAdjacentHTML('beforebegin','<p class="muted">手机测试版 0.1.2-test.2 · 本机文字 v4 / 图片 v3</p>');
+    const form=content.querySelector('form[data-form="settings"]');
+    for(const kind of ['morning','evening'])form.querySelector(`[name="${kind}"]`).closest('label').remove();
+    form.insertAdjacentHTML('afterbegin',RITUAL_KINDS.map(kind=>`<label>${ritualNames[kind]}提醒时间（可留空）<input name="${kind}" type="time" value="${escape(state.settings[kind])}"></label>`).join(''));
+    content.querySelector('[data-action="export"]').textContent='导出文字备份（不含图片）';
+    content.querySelector('[data-action="export"]').insertAdjacentHTML('afterend','<p class="muted">JSON 不包含照片、汇总截图、契约原图或签名；请在档案与订阅页分别下载图片备份。</p>');
+    content.insertAdjacentHTML('beforeend','<section><h3>绿联 NAS 相册</h3><p id="nas-status">正在检查连接配置…</p><p>照片保存在独立目录“日课请安”。NAS 未接通时，拍照仍可打卡，照片标为待同步。</p><form data-form="nas-connect"><label>本机上传服务连接密钥<input name="token" type="password" autocomplete="off" required></label><button>连接上传服务</button></form><p class="muted">这是本机服务密钥，不是 NAS 账户密码；仅保留在此浏览器会话中。</p><button data-action="sync-photos">补传待同步照片</button></section>');
+    offlineStatus();nasStatus();
+    if(staticHosting){
+      content.querySelector('section p').textContent='应用文件由 GitHub 托管；你的记录、照片、契约和签名仍只保存在本机，不上传 GitHub。请定期分别备份文字与图片。';
+      const connection=content.querySelector('form[data-form="nas-connect"]');
+      connection.closest('section').innerHTML='<h3>网页版 · 本机图片</h3><p>GitHub Pages 不提供 NAS 上传服务。本版本不收集 NAS 密钥、不连接家庭 NAS、不上传私人图片。</p>';
+    }
+  }
+  if(page==='档案')renderPhotoAlbum();
+  if(page==='档案'||page==='隐私'){
+    content.insertAdjacentHTML('beforeend','<section><h3>微信汇总截图 · NAS 月归档</h3><p>四项礼仪完成后自动保存。目录：日课分享截图 / 年-月 / 年-月-日.png。每日保留最新一份，NAS 离线时留在本机待补传。</p><p>文字备份不含照片或汇总截图。外网访问需在 NAS 单独启用带密码的目录分享，不会自动公开。</p><button data-action="sync-media">补传照片与汇总截图</button><div id="report-archive"></div></section>');
+    renderReportArchive();
+    if(staticHosting){
+      const section=content.querySelector('#report-archive').closest('section');
+      section.querySelector('h3').textContent='微信汇总截图 · 本机保存';
+      section.querySelectorAll('p')[0].textContent='四项礼仪完成后保存到本机，每日保留最新一份。可单独下载、再自行备份到 NAS。';
+    }
+  }
+  if(staticHosting)for(const control of content.querySelectorAll('[data-action="sync-photos"],[data-action="sync-media"],[data-action="sync-photo"]'))control.remove();
+  if(page==='今日'&&!ritualKind&&!reportOpen){
+    content.querySelector('.daily-share')?.insertAdjacentHTML('beforeend','<p id="archive-status" role="status"></p>');
+    paintArchiveStatus();
+  }
+}
+function renderRitual() {
+  const kind=ritualKind;
+  const date=dayKey();
+  const saved=state.days[date]?.[kind];
+  const done=saved!==undefined;
+  const evidence=ritualEvidence(state.days[date],kind);
+  const key=`${date}:${kind}:${evidence.photoId||'draft'}`;
+  if(photoKey!==key) {
+    photoKey=key;currentPhoto=null;photoLoading=true;
+    const pending=evidence.photoId?getPhoto(evidence.photoId):latestRitualPhoto(date,kind);
+    pending.then(photo=>{if(photoKey===key){currentPhoto=photo;photoLoading=false;if(ritualKind===kind&&page==='今日'&&!hidden)render();}}).catch(()=>{if(photoKey===key){photoLoading=false;notify('本机照片暂时无法读取，请重试拍照。');if(ritualKind===kind&&page==='今日'&&!hidden)render();}});
+  }
+  content.innerHTML=`<button class="back-button" data-action="close-ritual">‹ 返回日课</button><div class="eyebrow">${date} · ${state.settings[kind]}</div><section class="ritual-detail"><span class="ritual-emblem" aria-hidden="true">${done?'✓':'日'}</span><small>PERSONAL RITUAL</small><h2>${ritualNames[kind]}</h2><p>${done?'今日礼仪已完成。':'安静片刻，准备好后长按下方按钮。'}</p><small>${done?'已记录到本机 · 今日不重复计分':'完成后记录到本机 · 忠诚积分 +2'}</small></section>${done?`<article><h3>今日记录</h3><p>${escape(saved)}</p></article>`:'<label class="ritual-note">补充文字（可留空）<textarea id="ritual-note" maxlength="9900" placeholder="写下今天想记录的话…"></textarea></label>'}<div class="ritual-action"><button id="ritual-hold" class="hold-button" ${done||state.settings.paused?'disabled':''} aria-describedby="hold-help"><span class="hold-fill" aria-hidden="true"></span><span class="hold-label">${done?'今日已完成':state.settings.paused?'日课已暂停':'长按 3 秒 · 完成礼仪'}</span></button><p id="hold-help">${done?'明天可再次完成。':'松手或移出按钮即取消 · 键盘可持续按住空格或回车'}</p></div><p class="muted">本次礼仪仅保存在你的设备。</p>`;
+  const button=document.querySelector('#ritual-hold');
+  content.querySelector('.eyebrow').textContent=`${date} · ${state.settings[kind]||'提醒时间未设置'}`;
+  {
+    content.querySelector('.ritual-detail>p').textContent=done?'今日礼仪已完成。':'先完成请安，再拍照打卡，最后长按确认。';
+    content.lastElementChild.textContent=staticHosting?'请安记录与照片仅保存在本机，网页版不连接 NAS。':'请安记录留在本机，照片可同步至你的 NAS。';
+    content.querySelector('.ritual-detail').insertAdjacentHTML('beforeend',`<div class="ritual-instruction"><p>${escape(ritualInstruction(kind))}</p><blockquote>${escape(done?(evidence.phrase||saved):ritualGreeting(kind,date))}</blockquote>${done?`<p>完成时间：${escape(evidence.completedTime||'时间未记录（旧数据）')}</p>`:''}<small>请自行朗读与完成；应用不录音，也不自动判断动作。</small></div>`);
+    const photoPanel=document.createElement('section');photoPanel.className='photo-checkin';
+    photoPanel.innerHTML=`<h3>拍照打卡</h3><p id="photo-status" role="status">${photoStatus(currentPhoto)}</p><div id="photo-preview"></div>${!done?`<video id="ritual-camera" autoplay playsinline muted hidden aria-label="实时相机画面"></video><button data-action="start-camera" ${state.settings.paused?'disabled':''}>${currentPhoto?'重新拍照':'打开相机'}</button><button data-action="take-photo" hidden>拍下并保存</button><button data-action="stop-camera" hidden>取消拍摄</button>`:''}${currentPhoto?`<button data-action="download-photo" data-id="${escape(currentPhoto.id)}">下载照片</button>${!staticHosting?`<button data-action="sync-photo" data-id="${escape(currentPhoto.id)}">${currentPhoto.status==='uploaded'?'检查同步状态':'上传至 NAS'}</button>`:''}`:''}<p class="muted">${done?'旧记录无照片时不会自动补造。':'必须拍下并保存一张照片，才能长按完成礼仪。'} ${staticHosting?'照片仅保存在本机，请单独下载备份。':'NAS 上传状态以实际结果为准。'}</p>`;
+    const note=content.querySelector('.ritual-note');
+    if(note)note.replaceWith(photoPanel);else content.querySelector('.ritual-action').before(photoPanel);
+    if(currentPhoto){const image=document.createElement('img');image.alt='本次请安打卡照片';const url=URL.createObjectURL(currentPhoto.blob);photoUrls.push(url);image.src=url;photoPanel.querySelector('#photo-preview').append(image);}
+    if(!done && !currentPhoto){button.disabled=true;button.querySelector('.hold-label').textContent=state.settings.paused?'日课已暂停':photoLoading?'正在读取照片…':'先拍照打卡，再完成礼仪';}
+  }
+  if(button.disabled)return;
+  let pointerId=null;
+  let heldKey=null;
+  const label=button.querySelector('.hold-label');
+  const controller=createHoldController({now:()=>performance.now(),requestFrame:callback=>requestAnimationFrame(callback),cancelFrame:frame=>cancelAnimationFrame(frame),onProgress:progress=>{
+    button.style.setProperty('--hold-progress',`${progress*100}%`);
+    label.textContent=progress>0?`正在完成 · ${Math.ceil((1-progress)*3)} 秒`:'长按 3 秒 · 完成礼仪';
+  },onComplete:()=>{
+    pointerId=null;heldKey=null;
+    try {
+      if(document.hidden || hidden || dayKey()!==date)throw Error('日期或页面已变化，请重新打开礼仪');
+      commit(draft=>completeRitual(draft,kind,currentPhoto,date));
+      notify(`${ritualNames[kind]}已完成 · +2`);
+    }catch(error){controller.cancel();notify(error.message);}
+  }});
+  const cancel=()=>{pointerId=null;heldKey=null;controller.cancel();};
+  cancelHold=cancel;
+  button.addEventListener('pointerdown',event=>{
+    if(event.button!==0 || pointerId!==null || heldKey!==null)return;
+    event.preventDefault();pointerId=event.pointerId;button.setPointerCapture(pointerId);controller.start();
+  });
+  button.addEventListener('pointermove',event=>{
+    if(event.pointerId!==pointerId)return;
+    const rect=button.getBoundingClientRect();
+    if(event.clientX<rect.left || event.clientX>rect.right || event.clientY<rect.top || event.clientY>rect.bottom)cancel();
+  });
+  for(const name of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(name,event=>{if(event.pointerId===pointerId)cancel();});
+  button.addEventListener('keydown',event=>{
+    if(![' ','Enter'].includes(event.key))return;
+    event.preventDefault();if(event.repeat || pointerId!==null || heldKey!==null)return;heldKey=event.key;controller.start();
+  });
+  button.addEventListener('keyup',event=>{if(event.key===heldKey){event.preventDefault();cancel();}});
+  button.addEventListener('blur',cancel);
+  button.addEventListener('contextmenu',event=>event.preventDefault());
+}
+function stopCamera() {
+  cameraRequest++;
+  cameraStarting=false;
+  if(cameraStream)cameraStream.getTracks().forEach(track=>track.stop());
+  cameraStream=null;
+  const video=document.querySelector('#ritual-camera');
+  if(video){video.srcObject=null;video.hidden=true;}
+  for(const action of ['take-photo','stop-camera']){const control=document.querySelector(`[data-action="${action}"]`);if(control)control.hidden=true;}
+}
+function photoStatus(photo) {
+  if(!photo)return photoLoading?'正在读取本机照片…':'尚未拍照 · 完成按钮未解锁';
+  if(staticHosting)return mediaStatus(photo,true);
+  return photo.status==='uploaded'?'照片已保存到 NAS · 日课请安':'照片已保存在本机 · NAS 待同步';
+}
+async function startCamera() {
+  if(state.settings.paused)throw Error('日课已暂停');
+  if(cameraStarting || cameraStream)return;
+  if(!isSecureContext || !navigator.mediaDevices?.getUserMedia)throw Error('相机需要可信 HTTPS；电脑可用 localhost 预览');
+  const video=document.querySelector('#ritual-camera');
+  if(!video)throw Error('请先打开礼仪详情页');
+  const request=++cameraRequest;cameraStarting=true;
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    if(request!==cameraRequest || !video.isConnected || document.hidden){stream.getTracks().forEach(track=>track.stop());return;}
+    cameraStream=stream;video.srcObject=stream;video.hidden=false;await video.play();
+    for(const action of ['take-photo','stop-camera']){const control=document.querySelector(`[data-action="${action}"]`);if(control)control.hidden=false;}
+    notify('相机已打开，点击“拍下并保存”打卡');
+  }catch(error){
+    stopCamera();
+    throw Error(error.name==='NotAllowedError'?'未获得相机权限，请允许相机访问后重试':error.name==='NotFoundError'?'此设备没有可用相机；请在 iPhone 上拍照':error.name==='NotReadableError'?'相机正在被其他应用占用，请稍后再试':'相机打开失败，请检查权限与 HTTPS 连接');
+  }finally{if(request===cameraRequest)cameraStarting=false;}
+}
+async function takePhoto() {
+  if(photoCapturing)return;
+  if(state.settings.paused)throw Error('日课已暂停');
+  const date=dayKey();
+  const kind=ritualKind;
+  const video=document.querySelector('#ritual-camera');
+  if(!video || !cameraStream || !cameraStream.getVideoTracks().some(track=>track.readyState==='live'))throw Error('请先打开相机');
+  photoCapturing=true;
+  try {
+    const photo=await capturePhoto(video,date,kind);
+    currentPhoto=photo;photoKey=`${date}:${kind}:draft`;photoLoading=false;stopCamera();
+    if(ritualKind===kind && page==='今日'&&!hidden)render();
+    notify('照片已保存到本机，可以长按完成礼仪');
+    if(nasToken)syncSavedPhoto(photo).catch(error=>notify(`照片已保留，NAS 待同步：${error.message}`));
+  }finally{photoCapturing=false;}
+}
+async function syncSavedPhoto(photo) {
+  if(staticHosting)throw Error('网页版仅保存本机图片，不提供 NAS 上传服务');
+  if(syncingPhotos.has(photo.id))return;
+  syncingPhotos.add(photo.id);
+  try{
+    const updated=await syncPhoto(photo,nasToken);
+    if(currentPhoto?.id===updated.id)currentPhoto=updated;
+    const label=document.querySelector('#photo-status');if(label)label.textContent=photoStatus(currentPhoto);
+    notify('照片已上传至 NAS 的“日课请安”目录');
+    if(page==='档案'&&!hidden)renderPhotoAlbum();
+  }finally{syncingPhotos.delete(photo.id);}
+}
+async function syncPendingPhotos() {
+  if(staticHosting)throw Error('网页版不提供 NAS 上传服务');
+  if(!nasToken)throw Error('请先在隐私页填写本机上传服务连接密钥');
+  const photos=(await listPhotos()).filter(photo=>photo.status!=='uploaded');
+  if(!photos.length){notify('没有待同步照片');return;}
+  let uploaded=0;
+  for(const photo of photos){try{await syncSavedPhoto(photo);uploaded++;}catch(error){notify(`已同步 ${uploaded} 张，其余保留在本机：${error.message}`);return;}}
+  notify(`已同步 ${uploaded} 张照片至 NAS`);
+}
+async function paintArchiveStatus(date=dayKey()){
+  const element=content.querySelector('#archive-status');if(!element)return;
+  try{const report=await getReport(date);if(!element.isConnected)return;element.textContent=report?`${mediaStatus(report,staticHosting)} · ${date.slice(0,7)}/${date}.png${report.error?` · ${report.error}`:''}`:staticHosting?'完成四项礼仪后自动保存汇总到本机。':'完成四项礼仪后自动归档到 NAS。';}catch{if(element.isConnected)element.textContent='本机汇总图片读取失败，请检查存储空间。';}
+}
+async function renderReportArchive(){
+  const element=content.querySelector('#report-archive');if(!element)return;
+  try{
+    const reports=(await listReports()).sort((first,second)=>second.date.localeCompare(first.date));
+    if(!element.isConnected||hidden)return;
+    element.innerHTML=reports.length?reports.map(report=>`<article><strong>${escape(report.date)}</strong><p>${mediaStatus(report,staticHosting)}${report.error?` · ${escape(report.error)}`:''}</p><small>${escape(report.date.slice(0,7))}/${escape(report.date)}.png</small><button data-action="download-report" data-date="${escape(report.date)}">下载本机汇总截图</button></article>`).join(''):'尚无完整礼仪汇总截图。';
+  }catch{if(element.isConnected)element.textContent='本机汇总图片读取失败。';}
+}
+let retryingMedia=false;
+async function retryMedia(){
+  if(staticHosting||retryingMedia||!nasToken)return;
+  retryingMedia=true;
+  try{
+    const reports=await syncPendingReports(nasToken);
+    const photos=(await listPhotos()).filter(photo=>photo.status!=='uploaded');let uploaded=0;let failed=0;
+    for(const photo of photos){try{await syncSavedPhoto(photo);uploaded++;}catch{failed++;}}
+    notify(`汇总截图已同步 ${reports.uploaded}，待同步 ${reports.failed}；照片已同步 ${uploaded}，待同步 ${failed}`);
+    await paintArchiveStatus();await renderReportArchive();
+  }catch(error){notify(`本机图片保留待同步：${error.message}`);}finally{retryingMedia=false;}
+}
+async function nasStatus() {
+  const element=document.querySelector('#nas-status');if(!element)return;
+  if(staticHosting){element.textContent='网页版不提供 NAS 上传；图片仅保存在本机。';return;}
+  try{
+    const response=await fetch('./api/nas/status',{signal:AbortSignal.timeout(5000)});
+    if(!response.ok)throw Error();
+    const result=await response.json();
+    element.textContent=`原始照片：${result.configured?'已配置':'未配置'}；汇总截图：${result.reportsConfigured?'已配置':'未配置'}。连通性以实际上传结果为准。`;
+  }catch{element.textContent='上传服务不可达；照片仍可保存在本机，联网后再同步。';}
+}
+async function renderPhotoAlbum() {
+  const element=document.querySelector('#photo-album');if(!element)return;
+  try{
+    const photos=(await listPhotos()).sort((first,second)=>second.createdAt.localeCompare(first.createdAt));
+    if(!element.isConnected||hidden)return;
+    const previousUrls=new Set([...element.querySelectorAll('img')].map(image=>image.src));
+    for(const url of previousUrls)if(url.startsWith('blob:'))URL.revokeObjectURL(url);
+    photoUrls=photoUrls.filter(url=>!previousUrls.has(url));
+    element.replaceChildren();
+    if(!photos.length){element.textContent='尚无拍照打卡记录。';return;}
+    for(const photo of photos){
+      const item=document.createElement('article');
+      item.innerHTML=`<small>${escape(photo.date)} · ${escape(ritualNames[photo.kind]||'旧照片')} · ${ritualEvidence(state.days[photo.date],photo.kind).photoId===photo.id?'已完成礼仪的照片':'拍摄记录'}</small><p>${escape(photoStatus(photo))}</p><button data-action="download-photo" data-id="${escape(photo.id)}">下载照片</button>${!staticHosting&&photo.status!=='uploaded'?`<button data-action="sync-photo" data-id="${escape(photo.id)}">上传至 NAS</button>`:''}`;
+      const image=document.createElement('img');image.alt=`${photo.date} 请安打卡照片`;image.loading='lazy';const url=URL.createObjectURL(photo.blob);photoUrls.push(url);image.src=url;item.prepend(image);element.append(item);
+    }
+  }catch{if(element.isConnected)element.textContent='照片读取失败，请检查本机存储。';}
+}
+function readRitualRoute() {
+  if(location.hash==='#subscription'){page='订阅';ritualKind=null;reportOpen=false;return;}
+  const kind=location.hash.match(/^#ritual\/(morning|noon|evening|gratitude)$/)?.[1];
+  ritualKind=kind || null;
+  reportOpen=false;
+  if(kind)page='今日';
+}
+function reportCacheKey() {return `${reportGeneration}:${dayKey()}:${JSON.stringify(state.days[dayKey()]||{})}`;}
+function paintPreparedReport(prepared) {
+  for(const button of content.querySelectorAll('[data-action="share-day"],[data-action="copy-report"]'))button.disabled=!prepared.report.allComplete;
+  const download=content.querySelector('[data-action="download-card"]');if(download)download.disabled=false;
+  const status=content.querySelector('#report-status');if(status)status.textContent=prepared.report.allComplete?'分享卡已准备好。选择微信与接收人后确认发送。':'这是未完成预览；完成四项礼仪后解锁分享。';
+  const preview=content.querySelector('#share-image');
+  if(preview){const image=document.createElement('img');image.alt=`${prepared.report.date} 礼仪汇总：${prepared.report.completed}项完成，包含文本、缩略图及时间`;const url=URL.createObjectURL(prepared.file);photoUrls.push(url);image.src=url;preview.replaceChildren(image);}
+}
+function prepareReport() {
+  const key=reportCacheKey();
+  if(preparedShare && preparedKey===key){paintPreparedReport(preparedShare);return Promise.resolve(preparedShare);}
+  if(preparingShare && preparingKey===key)return preparingShare;
+  preparingKey=key;
+  const report=ritualReport(structuredClone(state));
+  const snapshot=JSON.stringify(state.days[report.date]||{});const epoch=reportGeneration;
+  const pending=buildShareCard(report,getPhoto).then(prepared=>{
+    if(epoch===reportGeneration && JSON.stringify(state.days[report.date]||{})===snapshot && report.allComplete){
+      archiveReport(prepared,nasToken,{upload:!staticHosting}).catch(error=>notify(staticHosting?`本机汇总保存未完成：${error.message}`:`汇总截图已生成，NAS 待同步：${error.message}`)).finally(()=>{paintArchiveStatus(report.date);renderReportArchive();});
+    }
+    if(reportCacheKey()!==key)return null;
+    preparedShare=prepared;preparedKey=key;paintPreparedReport(prepared);return prepared;
+  }).finally(()=>{if(preparingShare===pending){preparingShare=null;preparingKey='';}});
+  preparingShare=pending;
+  return pending;
+}
+function renderReport() {
+  const report=ritualReport(state);
+  content.innerHTML=`<button class="back-button" data-action="close-report">‹ 返回每日礼仪</button><h2>礼仪分享预览</h2><p>${report.date} · 完成 ${report.completed} / 4</p><p id="report-status" role="status">正在生成分享卡…</p><div id="share-image"></div><button data-action="share-day" disabled>分享至微信</button><button data-action="download-card" disabled>下载分享卡</button><button data-action="copy-report" disabled>复制请安文本</button><details><summary>查看分段文本与完成时间</summary><pre class="report-text">${escape(reportText(report))}</pre></details><p class="muted">分享卡会包含你的照片与文字。系统分享只打开选择菜单，不会自动发给任何联系人；此应用不能确认微信是否已发送。</p>`;
+  content.querySelector('#report-status').insertAdjacentHTML('afterend','<p id="archive-status" role="status"></p>');paintArchiveStatus(report.date);
+  prepareReport().catch(error=>{const status=content.querySelector('#report-status');if(status)status.textContent=`分享卡未生成：${error.message}`;});
+}
+function currentPreparedReport() {
+  if(!preparedShare || preparedKey!==reportCacheKey())throw Error('分享卡尚未准备好，请先打开汇总预览');
+  return preparedShare;
+}
+async function offlineStatus() {
+  const element = document.querySelector('#offline');
+  if (!element) return;
+  if (!('serviceWorker' in navigator) || !isSecureContext) { element.textContent='离线不可用：需要 HTTPS 或电脑 localhost。'; return; }
+  const registration = await navigator.serviceWorker.getRegistration();
+  element.textContent = registration?.active ? '离线缓存已安装。首次安装后请重新打开并用飞行模式验证。' : '离线缓存尚未就绪，请保持联网并稍后重开。';
+}
+function download(text,name) {
+  const url = URL.createObjectURL(new Blob([text],{type:'application/json'}));
+  const link = document.createElement('a'); link.href=url; link.download=name; link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+document.addEventListener('click',async event=>{
+  const button=event.target.closest('button'); if(!button) return;
+  try {
+    if(button.dataset.page) {page=button.dataset.page;ritualKind=null;reportOpen=false;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':''));render();return;}
+    const action=button.dataset.action;
+    if(staticHosting&&['sync-photo','sync-photos','sync-media'].includes(action))throw Error('网页版不提供 NAS 上传服务');
+    if(action==='open-report'){ritualKind=null;reportOpen=true;if(location.hash)history.replaceState(null,'',location.pathname+location.search);render();return;}
+    if(action==='close-report'){reportOpen=false;render();return;}
+    if(action==='share-day'){
+      try{await sharePrepared(currentPreparedReport());notify('已打开系统分享；请在微信中确认发送');}catch(error){if(error.name==='AbortError'){notify('已取消分享，礼仪记录保留');return;}throw error;}
+      return;
+    }
+    if(action==='download-card'){
+      const prepared=currentPreparedReport();const url=URL.createObjectURL(prepared.file);const link=document.createElement('a');link.href=url;link.download=prepared.file.name;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);return;
+    }
+    if(action==='copy-report'){
+      const prepared=currentPreparedReport();if(!prepared.report.allComplete)throw Error('请先完成今日四项礼仪');
+      if(!navigator.clipboard?.writeText)throw Error('此设备无法复制，请展开分段文本手动复制');await navigator.clipboard.writeText(prepared.text);notify('请安文本已复制，可粘贴至微信');return;
+    }
+    if(action==='start-camera')await startCamera();
+    if(action==='take-photo')await takePhoto();
+    if(action==='stop-camera')stopCamera();
+    if(action==='download-photo'){
+      const photo=await getPhoto(button.dataset.id);if(!photo)throw Error('本机照片不存在');
+      const url=URL.createObjectURL(photo.blob);const link=document.createElement('a');link.href=url;link.download=`${photo.date}-${photo.kind}-${photo.id}.jpg`;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+    }
+    if(action==='sync-photo'){
+      const photo=await getPhoto(button.dataset.id);if(!photo)throw Error('本机照片不存在');await syncSavedPhoto(photo);
+    }
+    if(action==='sync-photos')await syncPendingPhotos();
+    if(action==='sync-media'){if(!nasToken)throw Error('请先在隐私页填写本机上传服务连接密钥');await retryMedia();}
+    if(action==='download-report'){
+      const report=await getReport(button.dataset.date);if(!report)throw Error('本机汇总截图不存在');
+      const url=URL.createObjectURL(report.blob);const link=document.createElement('a');link.href=url;link.download=`${report.date}.png`;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+    }
+    if(action==='open-ritual') {location.hash=`ritual/${button.dataset.kind}`;return;}
+    if(action==='close-ritual') {history.replaceState(null,'',location.pathname+location.search);ritualKind=null;render();return;}
+    if(button.id==='veil') {hidden=true;render();}
+    if(action==='reveal') {hidden=false;render();}
+    if(action==='complete') commit(draft=>completeTask(draft,button.dataset.id));
+    if(action==='archive') commit(draft=>{draft.tasks.find(task=>task.id===button.dataset.id).status='archived';});
+    if(action==='edit') {
+      const task=state.tasks.find(item=>item.id===button.dataset.id);
+      content.innerHTML=`<h2>编辑任务</h2><form data-form="edit" data-id="${escape(task.id)}">${input('title','标题',task.title)}${area('note','具体内容',task.note)}${taskFields(task)}<label>状态<select name="status">${['active','possible','archived'].map(value=>`<option value="${value}" ${task.status===value?'selected':''}>${{active:'已开展',possible:'尚未发生',archived:'已归档'}[value]}</option>`).join('')}</select></label><label class="check"><input name="confirmed" type="checkbox" ${task.confirmed?'checked':''}>我明确确认以上文字及工作命令为要求</label><p>修改不重置完成状态，不重复计分。</p><button>保存</button></form>`;
+    }
+    if(action==='export') download(JSON.stringify(state,null,2),`daily-${dayKey()}.json`);
+    if(action==='raw') download(localStorage.getItem('zeng-daily-v1')??'null','daily-raw.json');
+    if(action==='persist') notify(navigator.storage?.persist ? (await navigator.storage.persist()?'已允许保留；仍请导出备份':'浏览器未允许保留；请定期导出备份'):'此浏览器不支持请求保留存储');
+    if(action==='update') {const registration=await navigator.serviceWorker.getRegistration();if(!registration)throw Error('离线服务尚未安装');await registration.update();notify('已检查；如有新版，请关闭所有日课窗口后重新打开。');}
+    if(action==='clear' && prompt('输入 清空 确认删除全部本机记录、照片、汇总截图、订阅协议和本人签名。请先分别备份文字和图片。NAS 上的文件不会删除。')==='清空') {reportGeneration++;resetReportQueue();await clearMedia();writeState(initialState());state=initialState();currentPhoto=null;photoKey='';preparedShare=null;preparedKey='';storageFailed=false;render();notify('本机数据已清空；NAS 文件保留');}
+  } catch(error) {notify(error.message);}
+});
+document.addEventListener('submit',event=>{
+  event.preventDefault();const form=event.target;const data=new FormData(form);const value=name=>String(data.get(name)??'');
+  if(form.dataset.form==='nas-connect'){
+    if(staticHosting){notify('网页版不收集 NAS 连接密钥');return;}
+    nasToken=value('token');
+    try{sessionStorage.setItem('daily-nas-token',nasToken);}catch{}
+    form.reset();notify('连接密钥已保留在当前会话，实际连接将在上传时验证');nasStatus();retryMedia();return;
+  }
+  try {commit(draft=>{
+    const type=form.dataset.form;
+    if(draft.settings.paused && ['record','task','ledger'].includes(type)) throw Error('日课已暂停');
+    if(type==='daily') daily(draft,form.dataset.kind,value('text'));
+    if(type==='record') draft.records.push({date:dayKey(),text:value('text').trim()});
+    const taskData=()=>({title:value('title').trim(),note:value('note').trim(),status:value('status'),confirmed:data.has('confirmed'),startDate:value('startDate'),endDate:value('endDate'),command:value('command').trim(),dailyReminder:data.has('dailyReminder')});
+    if(type==='task') draft.tasks.push({id:crypto.randomUUID(),...taskData(),done:false});
+    if(type==='edit') Object.assign(draft.tasks.find(task=>task.id===form.dataset.id),taskData());
+    if(type==='ledger') {const amount=Number(value('points'));if(!Number.isSafeInteger(amount)||Math.abs(amount)>1000)throw Error('分值须为 -1000 至 1000 的整数');draft.ledger.push({date:dayKey(),kind:value('kind'),points:amount,text:value('text').trim()});}
+    if(type==='profile') draft.profile={name:value('name').trim(),notes:value('notes').trim()};
+    if(type==='settings') draft.settings={...Object.fromEntries(RITUAL_KINDS.map(kind=>[kind,value(kind)])),hideOnLeave:data.has('hideOnLeave'),paused:data.has('paused')};
+  });}catch(error){notify(error.message);}
+});
+document.addEventListener('change',async event=>{
+  if(event.target.id!=='import') return;
+  try {const file=event.target.files[0];if(!file)return;if(file.size>5_000_000)throw Error('备份超过 5 MB');const restored=parseBackup(await file.text());if(!confirm('将覆盖当前本机数据。已导出当前备份并确认继续？'))return;writeState(restored);state=restored;storageFailed=false;render();notify('备份已恢复');}catch(error){notify(`恢复失败：${error.message}`);}
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.settings.hideOnLeave){hidden=true;render();}else if(!document.hidden)render();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelHold();stopCamera();}});
+window.addEventListener('pagehide',stopCamera);
+window.addEventListener('blur',()=>cancelHold());
+window.addEventListener('hashchange',()=>{readRitualRoute();render();});
+window.addEventListener('online',()=>{render();retryMedia();});window.addEventListener('offline',render);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)retryMedia();});
+readRitualRoute();
+render();
+retryMedia();
+if(storageFailed)notify('本地读取异常，已保护原始数据。请进入隐私页恢复备份。');
+if('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('./sw.js').then(offlineStatus).catch(()=>notify('离线安装失败，请保持联网后重新打开。'));
