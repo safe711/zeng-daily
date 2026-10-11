@@ -14,3 +14,5 @@
 input[type="time"]{width:180px;max-width:100%;min-width:0;padding:10px}input[type="time"]::-webkit-date-and-time-value{min-width:0;text-align:left}input[type="time"]::-webkit-datetime-edit{min-width:0;padding:0}.subscription-identity{margin-bottom:10px}.subscription-protection{display:block;background:#183f2d;border:1px solid #31865b;color:#9ee7bb;padding:12px 14px;border-radius:10px;margin-top:0}
 
 .subscription-view>section{margin:12px 0;padding:16px}.subscription-overview .subscription-introduction h3{margin:12px 0 8px}.subscription-overview .subscription-introduction p{margin:8px 0 14px;line-height:1.65}.subscription-declaration p{margin:6px 0}
+
+.subscription-qr>img{display:block;width:100%;max-height:55vh;object-fit:contain;border-radius:10px}.subscription-qr a{color:#e3cc99}
