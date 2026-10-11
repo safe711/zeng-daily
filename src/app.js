@@ -10,7 +10,7 @@ import {subscriptionStatus} from './subscription.js';
 import {isStaticHosting,mediaStatus} from './hosting.js';
 import {createPushClient} from './pushclient.js';
 import {mountShoes} from './shoeview.js';
-import {getShoeReport,deleteTaskMedia} from './photos.js';
+import {getShoeReport,deleteTaskMedia,getSubscriptionMedia,saveSubscriptionMedia} from './photos.js';
 import {syncPendingShoeMedia,shoeRecordKey} from './shoes.js';
 import {createNotifier} from './notifications.js';
 import {createLanBackup} from './lanbackup.js';
@@ -122,7 +122,7 @@ function render() {
   }
   if(page==='任务') body=tasksHtml(state).replace('<div class="task-list">',reminderPanel()+'<div class="task-list">');
   if(page==='积分') body = `<section><small>忠诚积分 · 虚拟计分</small><div class="score">${points(state)}</div><p>请安与复命各 +2，已开展任务完成 +3。警告不自动扣分。</p></section><form data-form="ledger"><label>类型<select name="kind"><option value="reward">虚拟嘉奖</option><option value="warning">虚拟警告</option></select></label>${input('points','分值（-1000 至 1000）','0','number')}${area('text','说明')}<button ${paused?'disabled':''}>记录虚拟反馈</button></form>${list([...state.ledger].reverse().map(entry=>({...entry,text:`${entry.kind==='warning'?'虚拟警告':entry.kind==='reward'?'虚拟嘉奖':'积分'} ${entry.points>=0?'+':''}${entry.points} · ${entry.text}`})))}`;
-  if(page==='档案') body = `<section class="fixed-profile" aria-labelledby="fixed-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="fixed-profile-title">主子：曾仪</h3><dl><div><dt>生日</dt><dd>2003年</dd></div><div><dt>学历</dt><dd>研究生</dd></div><div><dt>学校</dt><dd>对外经济贸易大学</dd></div><div><dt>专属狗奴</dt><dd>于涵、小姜</dd></div></dl><h4>简介</h4><p>目前负责管理曾家狗奴才，发布命令，收取贡金，办理灾祸出售等业务。</p></section><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 NAS 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 NAS。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${list(Object.entries(state.days).sort(([first],[second])=>second.localeCompare(first)).map(([date,entry])=>({date,text:RITUAL_KINDS.map(kind=>`${ritualNames[kind]}：${entry[kind]??'未记录'}${entry[kind]!==undefined?`\n完成时间：${ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'}`:''}`).join('\n\n')+(entry.legacyEvening!==undefined?`\n\n晚间复命（旧记录）：${entry.legacyEvening}`:'')})))}`;
+  if(page==='档案') body = `<section class="fixed-profile" aria-labelledby="fixed-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="fixed-profile-title">主子：曾仪</h3><div id="profile-portrait"><p class="muted">正在读取主子照片…</p></div><dl><div><dt>生日</dt><dd>2003年</dd></div><div><dt>学历</dt><dd>研究生</dd></div><div><dt>学校</dt><dd>对外经济贸易大学</dd></div><div><dt>专属狗奴</dt><dd>于涵、小姜</dd></div></dl><h4>简介</h4><p>目前负责管理曾家狗奴才，发布命令，收取贡金，办理灾祸出售等业务。</p></section><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 NAS 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 NAS。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${list(Object.entries(state.days).sort(([first],[second])=>second.localeCompare(first)).map(([date,entry])=>({date,text:RITUAL_KINDS.map(kind=>`${ritualNames[kind]}：${entry[kind]??'未记录'}${entry[kind]!==undefined?`\n完成时间：${ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'}`:''}`).join('\n\n')+(entry.legacyEvening!==undefined?`\n\n晚间复命（旧记录）：${entry.legacyEvening}`:'')})))}`;
   if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“曾家家奴”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
   const mediaSaved=manual=>staticHosting?(manual?lanBackup.retry():lanBackup.run()):syncTaskMedia(state.tasks,{key:nasToken}).then(()=>retryMedia()).catch(error=>notify('图片保留待补传：'+error.message));
   if(taskDetailId&&page==='任务'){unmountTask=mountTask(content,taskDetailId,{getState:()=>state,commit:change=>commit(change,false),notify,onBack:()=>{taskDetailId=null;history.replaceState(null,'',location.pathname+location.search);render();},onMediaSaved:mediaSaved});return;}
@@ -133,6 +133,7 @@ function render() {
   if(ritualKind && page==='今日') {renderRitual();return;}
   content.innerHTML = (page==='家规'?'':heading) + body;
   if(page==='档案'){
+    renderProfilePortrait();
     content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section><section><h3>洗鞋照片记录</h3><div id="shoe-archive"></div></section>`);
     renderShoeArchive();
   }
@@ -354,6 +355,11 @@ async function renderPhotoAlbum() {
       const image=document.createElement('img');image.alt=`${photo.date} 请安打卡照片`;image.loading='lazy';const url=URL.createObjectURL(photo.blob);photoUrls.push(url);image.src=url;item.prepend(image);element.append(item);
     }
   }catch{if(element.isConnected)element.textContent='照片读取失败，请检查本机存储。';}
+}
+async function renderProfilePortrait(){
+ const holder=content.querySelector('#profile-portrait');if(!holder)return;let displayed=false;
+ const show=blob=>{if(content.querySelector('#profile-portrait')!==holder)return;const image=document.createElement('img');image.alt='曾仪的档案照片';image.className='profile-portrait';const url=URL.createObjectURL(blob);photoUrls.push(url);image.src=url;holder.replaceChildren(image);displayed=true;};
+ try{const cached=await getSubscriptionMedia('master-profile-photo');if(cached?.blob)show(cached.blob);if(!staticHosting||!lanBackup.enabled||!navigator.onLine){if(!displayed)holder.innerHTML='<p class="muted">连接家庭 Wi-Fi 后自动加载主子照片，加载后可离线查看。</p>';return;}const blob=await lanBackup.readProfilePhoto();await saveSubscriptionMedia({id:'master-profile-photo',role:'profile-photo',blob});show(blob);}catch{if(!displayed&&content.querySelector('#profile-portrait')===holder)holder.innerHTML='<p class="muted">暂未连通家庭 NAS，连接家庭 Wi-Fi 后可加载主子照片。</p>';}
 }
 async function renderShoeArchive(){
   const element=content.querySelector('#shoe-archive');if(!element)return;

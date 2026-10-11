@@ -25,3 +25,5 @@ nav button{min-width:0;margin:0}
 /* 全页取消双击缩放，保留滚动及双指缩放；长按礼仪按钮仍使用自身手势规则。 */
 html,body,body *{touch-action:manipulation}.hold-button{touch-action:none}
 .fixed-profile{background:linear-gradient(135deg,#302a23,#242731);border:1px solid #b69a6055}.fixed-profile h3{font-size:25px;color:#e3cc99;margin:10px 0 18px}.fixed-profile dl{margin:0}.fixed-profile dl div{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid #ffffff12}.fixed-profile dt{color:#a6a6af;font-size:14px}.fixed-profile dd{margin:0;overflow-wrap:anywhere;line-height:1.5}.fixed-profile h4{margin:22px 0 8px;color:#e3cc99}.fixed-profile p{margin:0;font-size:15px}
+
+.profile-portrait{display:block;width:100%;aspect-ratio:3/4;max-height:460px;object-fit:cover;object-position:50% 65%;border-radius:12px;margin:0 0 20px}#profile-portrait .muted{font-size:13px;margin-bottom:18px}

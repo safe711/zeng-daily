@@ -84,6 +84,12 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},stora
     if(blob.size>8000000)throw Error('契约原件过大');
     return blob;
   }
+  async function readProfilePhoto(){
+    const connection=await connect();const response=await fetcher(connection.url+'/api/private/profile-photo',{credentials:'omit',redirect:'error',cache:'no-store',headers:{Authorization:'Bearer '+connection.key},signal:AbortSignal.timeout(15000)});
+    if(config!==connection)throw Error('NAS 连接已变更');if(!response.ok)throw Error('档案照片暂时无法读取');
+    if(response.headers.get('content-type')!=='image/jpeg'||Number(response.headers.get('content-length'))>8000000)throw Error('档案照片格式无效');
+    const blob=await response.blob(),bytes=new Uint8Array(await blob.slice(0,3).arrayBuffer());if(!blob.size||blob.size>8000000||bytes[0]!==255||bytes[1]!==216||bytes[2]!==255)throw Error('档案照片内容无效');return blob;
+  }
   function settingsHtml(){return `<section><h3>回家自动备份到 NAS</h3><p>在家里的 Wi-Fi 打开软件，会自动连接 NAS 并补传照片、汇总截图和洗鞋记录。无需填写地址或密钥。外出时保留待上传图片，下次回家补传。</p><p>若浏览器提示访问本地网络，请选择允许。连接凭证只保存在本机。</p><p data-lan-status>${disabled?'自动备份已停止':lastStatus.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}</p><button data-action="lan-retry">立即连接并补传</button><button data-action="lan-disconnect">停止自动备份</button><p><a href="https://192.168.1.20:4180/connection-check" target="_blank" rel="noopener noreferrer">打开连接检测页</a></p><p><button type="button" data-action="certificate-guide">证书安装帮助</button></p></section>`;}
-  return {save,disconnect,connect,retry,run,readContract,settingsHtml,get enabled(){return !disabled;},get configured(){return !!config;}};
+  return {save,disconnect,connect,retry,run,readContract,readProfilePhoto,settingsHtml,get enabled(){return !disabled;},get configured(){return !!config;}};
 }
