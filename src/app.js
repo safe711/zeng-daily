@@ -66,7 +66,7 @@ const input = (name,label,value='',type='text') => `<label>${label}<input name="
 const area = (name,label,value='') => `<label>${label}<textarea name="${name}" maxlength="10000" required>${escape(value)}</textarea></label>`;
 const list = items => items.length ? items.map(item=>`<article><small>${escape(item.date)}</small><p>${escape(item.text)}</p></article>`).join('') : '<p class="muted">尚无记录。</p>';
 function taskFields(task={}) {
-  return `<label>起始日期（可留空）<input name="startDate" type="date" value="${escape(task.startDate || '')}"></label><label>结束日期（可留空，含当日）<input name="endDate" type="date" value="${escape(task.endDate || '')}"></label><label>工作命令（自行填写）<textarea name="command" maxlength="10000">${escape(task.command || '')}</textarea></label><label class="check"><input name="dailyReminder" type="checkbox" ${task.dailyReminder?'checked':''}>每日强提醒（仅应用内）</label><p class="muted">在起止日期内，每日打开应用都会醒目提示未完成的已开展任务；完成、归档或暂停后停止。不会自动生成每日任务，也没有关闭后的定时推送。</p>`;
+  return `<label>任务发布主子<input name="publisher" maxlength="100" value="${escape(task.publisher||'')}"></label><label>任务执行奴才<input name="executor" maxlength="100" value="${escape(task.executor||'')}"></label><label>起始日期（可留空）<input name="startDate" type="date" value="${escape(task.startDate || '')}"></label><label>结束日期（可留空，含当日）<input name="endDate" type="date" value="${escape(task.endDate || '')}"></label><label>工作命令（自行填写）<textarea name="command" maxlength="10000">${escape(task.command || '')}</textarea></label><label class="check"><input name="dailyReminder" type="checkbox" ${task.dailyReminder?'checked':''}>每日强提醒（仅应用内）</label><p class="muted">在起止日期内，每日打开应用都会醒目提示未完成的已开展任务；完成、归档或暂停后停止。不会自动生成每日任务，也没有关闭后的定时推送。</p>`;
 }
 function reminderPanel() {
   const tasks=taskReminders(state);
@@ -508,7 +508,7 @@ document.addEventListener('click',async event=>{
 });
 document.addEventListener('submit',event=>{
   event.preventDefault();const form=event.target;const data=new FormData(form);const value=name=>String(data.get(name)??'');
-  if(form.dataset.form==='new-task'){try{let id;const type=value('type');commit(draft=>{id=createTask(draft,{type,title:value('title'),note:value('note').trim(),plannedStart:value('plannedStart'),plannedEnd:value('plannedEnd')});});location.hash=(type==='shoe'?'shoes/':'task/')+id;}catch(error){notify(error.message);}return;}
+  if(form.dataset.form==='new-task'){try{let id;const type=value('type');commit(draft=>{id=createTask(draft,{type,title:value('title'),note:value('note').trim(),plannedStart:value('plannedStart'),plannedEnd:value('plannedEnd'),publisher:value('publisher'),executor:value('executor')});});location.hash=(type==='shoe'?'shoes/':'task/')+id;}catch(error){notify(error.message);}return;}
   if(form.dataset.form==='nas-connect'){
     if(staticHosting){notify('网页版不收集 NAS 连接密钥');return;}
     nasToken=value('token');
@@ -519,7 +519,7 @@ document.addEventListener('submit',event=>{
     const type=form.dataset.form;
     if(draft.settings.paused && ['task','ledger'].includes(type)) throw Error('日课已暂停');
     if(type==='daily') daily(draft,form.dataset.kind,value('text'));
-    const taskData=()=>({title:value('title').trim(),note:value('note').trim(),status:value('status'),confirmed:data.has('confirmed'),startDate:value('startDate'),endDate:value('endDate'),command:value('command').trim(),dailyReminder:data.has('dailyReminder')});
+    const taskData=()=>({publisher:value('publisher').trim(),executor:value('executor').trim(),title:value('title').trim(),note:value('note').trim(),status:value('status'),confirmed:data.has('confirmed'),startDate:value('startDate'),endDate:value('endDate'),command:value('command').trim(),dailyReminder:data.has('dailyReminder')});
     if(type==='task') draft.tasks.push({id:crypto.randomUUID(),...taskData(),done:false});
     if(type==='edit') Object.assign(draft.tasks.find(task=>task.id===form.dataset.id),taskData());
     if(type==='ledger') {const amount=Number(value('points'));if(!Number.isSafeInteger(amount)||Math.abs(amount)>1000)throw Error('分值须为 -1000 至 1000 的整数');draft.ledger.push({date:dayKey(),kind:value('kind'),points:amount,text:value('text').trim()});}

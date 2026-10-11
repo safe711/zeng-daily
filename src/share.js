@@ -1,3 +1,4 @@
+import {drawBrandFooter} from './branding.js';
 import {dayKey,RITUAL_KINDS,RITUAL_NAMES} from './model.js';
 import {ritualEvidence} from './ritual.js';
 export function ritualReport(state,date=dayKey()) {
@@ -45,9 +46,9 @@ export async function buildShareCard(report,getPhoto) {
     const lines=wrapText(context,text,536);
     return {...entry,image,photoStatus,lines,height:Math.max(220,124+lines.length*34)};
   }));
-  canvas.height=190+blocks.reduce((sum,block)=>sum+block.height+20,0);
+  canvas.height=320+blocks.reduce((sum,block)=>sum+block.height+20,0);
   context.fillStyle='#131313';context.fillRect(0,0,canvas.width,canvas.height);
-  context.fillStyle='#e4cfaa';context.font='bold 34px system-ui, sans-serif';context.fillText('曾家日课 · 每日礼仪',40,62);
+  context.fillStyle='#e4cfaa';context.font='bold 34px system-ui, sans-serif';context.fillText('曾家家奴 · 每日礼仪',40,62);
   context.fillStyle='#aaaab4';context.font='21px system-ui, sans-serif';context.fillText(`${report.date}    已完成 ${report.completed} / ${RITUAL_KINDS.length}`,40,105);
   let top=140;
   for(const block of blocks){
@@ -65,6 +66,7 @@ export async function buildShareCard(report,getPhoto) {
     context.fillStyle='#aaaab4';context.font='17px system-ui, sans-serif';context.fillText(block.photoStatus,imageLeft,imageTop+size+27);
     top+=block.height+20;
   }
+  await drawBrandFooter(context,canvas.width,canvas.height);
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
   if(!blob)throw Error('分享卡生成失败');
   return {report,text:reportText(report),file:new File([blob],`daily-ritual-${report.date}.png`,{type:'image/png'})};

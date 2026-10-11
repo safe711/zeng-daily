@@ -64,6 +64,7 @@ export function validateState(state) {
   const ids = new Set();
   for (const task of state.tasks) {
     if (!task || !string(task.id) || ids.has(task.id) || !string(task.title) || !task.title.trim() || !string(task.note) || !['active','possible','archived'].includes(task.status) || typeof task.confirmed !== 'boolean' || typeof task.done !== 'boolean') throw Error('任务数据无效');
+    for(const field of ['publisher','executor'])if(task[field]!==undefined&&(!string(task[field])||task[field].length>100))throw Error('任务发布主子或执行奴才信息无效');
     validateTaskSchedule(task);
     if(task.type!==undefined&&!['shoe','laundry','homework','custom'].includes(task.type))throw Error('任务类型无效');
     for(const field of ['startedAt','completedAt'])if(task[field]!==undefined&&task[field]!==''&&!Number.isFinite(Date.parse(task[field])))throw Error('任务实际时间无效');
