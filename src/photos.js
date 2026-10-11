@@ -99,3 +99,12 @@ export async function syncPhoto(photo,token,{fetcher=fetch,persist=savePhoto}={}
   await persist(uploaded);
   return uploaded;
 }
+
+export async function deleteTaskMedia({taskId,recordIds,shoePhotoIds,taskMediaIds}){
+ const db=await openDatabase();return new Promise((resolve,reject)=>{
+  const tx=db.transaction(['shoePhotos','shoeReports','subscriptionMedia'],'readwrite');
+  const sets={shoePhotos:new Set(shoePhotoIds),shoeReports:new Set(recordIds),subscriptionMedia:new Set(taskMediaIds)};
+  for(const name of Object.keys(sets)){const request=tx.objectStore(name).openCursor();request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;const asset=cursor.value;if(sets[name].has(cursor.primaryKey)||(name==='subscriptionMedia'&&['task-photo','task-report'].includes(asset.role)&&asset.taskId===taskId)||(name!=='subscriptionMedia'&&recordIds.includes(asset.recordId)))cursor.delete();cursor.continue();};}
+  tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(Error('任务已删除，本机关联图片清理未完成；NAS 备份保留'));
+ });
+}

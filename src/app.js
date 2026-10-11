@@ -10,14 +10,14 @@ import {subscriptionStatus} from './subscription.js';
 import {isStaticHosting,mediaStatus} from './hosting.js';
 import {createPushClient} from './pushclient.js';
 import {mountShoes} from './shoeview.js';
-import {getShoeReport} from './photos.js';
+import {getShoeReport,deleteTaskMedia} from './photos.js';
 import {syncPendingShoeMedia,shoeRecordKey} from './shoes.js';
 import {createNotifier} from './notifications.js';
 import {createLanBackup} from './lanbackup.js';
 import {createUpdater} from './updater.js';
 import {APP_VERSION,releaseLogHtml} from './version.js';
 import {certificateGuideHtml} from './certificate.js';
-import {createTask,tasksHtml} from './tasks.js';
+import {createTask,tasksHtml,deleteTask} from './tasks.js';
 import {mountTask} from './taskview.js';
 import {syncTaskMedia} from './taskmedia.js';
 import {houseRulesHtml} from './rules.js';
@@ -482,6 +482,11 @@ document.addEventListener('click',async event=>{
     if(button.id==='veil') {hidden=true;render();}
     if(action==='reveal') {hidden=false;render();}
     if(action==='complete') commit(draft=>completeTask(draft,button.dataset.id));
+    if(action==='delete-task'){
+      const task=state.tasks.find(t=>t.id===button.dataset.id);if(!task)throw Error('任务不存在或已删除');
+      if(!confirm('确定删除“'+task.title+'”及本机关联照片、截图？\nNAS 备份和已获得积分保留。'))return;
+      let media;commit(draft=>{media=deleteTask(draft,task.id);});await deleteTaskMedia(media);notify('任务已删除，NAS 备份保留');return;
+    }
     if(action==='archive') commit(draft=>{draft.tasks.find(task=>task.id===button.dataset.id).status='archived';});
     if(action==='edit') {
       const task=state.tasks.find(item=>item.id===button.dataset.id);
