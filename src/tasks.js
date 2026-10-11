@@ -4,7 +4,8 @@ export const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;'
 export const taskType=task=>task.type||(task.id==='shoe'||task.title.includes('洗鞋')?'shoe':'custom');
 export const photoIds=(shoe,phase)=>shoe[phase+'PhotoIds']||[shoe[phase+'PhotoId']].filter(Boolean);
 export const timeText=value=>value?new Date(value).toLocaleString('zh-CN',{hour12:false}):'未记录';
-export const taskKey=task=>JSON.stringify([task.id,task.title,task.note,task.command,task.plannedStart,task.plannedEnd,task.startedAt,task.completedAt,task.photoIds]);
+export const taskStatus=task=>task.done?'已完成':task.status==='archived'?'已归档 · 未完成':task.status==='possible'?'待开始':'进行中';
+export const taskKey=task=>JSON.stringify([task.status,task.done,task.id,task.title,task.note,task.command,task.plannedStart,task.plannedEnd,task.startedAt,task.completedAt,task.photoIds]);
 export function createTask(state,{type,title='',note='',plannedStart='',plannedEnd=''},now=new Date()){
  if(state.settings.paused)throw Error('日课已暂停');if(!TYPES[type])throw Error('请选择任务类型');title=(type==='custom'?title:TYPES[type]).trim();if(!title)throw Error('请填写任务名称');if(plannedEnd&&plannedStart&&plannedEnd<plannedStart)throw Error('结束时间不能早于开始时间');
  const task={id:crypto.randomUUID(),type,title,note,status:'active',confirmed:false,done:false,command:'',dailyReminder:false,startDate:plannedStart.slice(0,10),endDate:plannedEnd.slice(0,10),plannedStart,plannedEnd,startedAt:now.toISOString(),completedAt:'',photoIds:[]};state.tasks.push(task);if(type==='shoe')createShoeRecord(state,task.id,dayKey(now),now);return task.id;
