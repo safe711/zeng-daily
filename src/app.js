@@ -2,7 +2,7 @@ import {dayKey,initialState,parseBackup,points,daily,completeTask,taskInDateRang
 import {readState,writeState} from './storage.js';
 import {createHoldController} from './hold.js';
 import {ritualGreeting,ritualInstruction,completeRitual,ritualEvidence} from './ritual.js';
-import {getPhoto,listPhotos,clearMedia,latestRitualPhoto,capturePhoto,syncPhoto,getReport,listReports} from './photos.js';
+import {savePhoto,deletePhoto,getPhoto,listPhotos,clearMedia,latestRitualPhoto,capturePhoto,syncPhoto,getReport,listReports} from './photos.js';
 import {archiveReport,syncPendingReports,resetReportQueue} from './reports.js';
 import {ritualReport,reportText,buildShareCard,sharePrepared} from './share.js';
 import {mountSubscription} from './subscriptionview.js';
@@ -17,9 +17,12 @@ import {createLanBackup} from './lanbackup.js';
 import {createUpdater} from './updater.js';
 import {APP_VERSION,releaseLogHtml} from './version.js';
 import {certificateGuideHtml} from './certificate.js';
-import {createTask,tasksHtml,deleteTask} from './tasks.js';
+import {createTask,tasksHtml,deleteTask,taskType} from './tasks.js';
 import {mountTask} from './taskview.js';
-import {syncTaskMedia} from './taskmedia.js';
+import {buildTaskCard,syncTaskMedia} from './taskmedia.js';
+import {shareTaskFile} from './taskfiles.js';
+import {buildShoeCard} from './shoecard.js';
+import {getShoePhoto} from './photos.js';
 import {houseRulesHtml} from './rules.js';
 const staticHosting=isStaticHosting();
 const pushClient=createPushClient({staticHosting});
@@ -32,7 +35,7 @@ const checkForUpdate=createUpdater({notify});
 let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
-const lanBackup=createLanBackup({records:()=>state.shoeRecords,tasks:()=>state.tasks,notify});
+const lanBackup=createLanBackup({photos:async()=>(await listPhotos()).filter(usedRitualPhoto),records:()=>state.shoeRecords,tasks:()=>state.tasks,notify});
 let page = '今日';
 let hidden = false;
 let ritualKind = null;
@@ -44,6 +47,9 @@ let taskDetailId=null;
 let shoeTaskId=null;
 let shoeRecordId=null;
 let currentPhoto=null;
+let taskShares=new Map();
+function usedRitualPhoto(photo){return RITUAL_KINDS.some(kind=>ritualEvidence(state.days[photo.date],kind).photoId===photo.id);}
+function discardUnusedPhoto(){if(currentPhoto&&!usedRitualPhoto(currentPhoto)){currentPhoto=null;photoKey='';}}
 let photoKey='';
 let photoLoading=false;
 let cameraStream=null;
@@ -132,6 +138,7 @@ function render() {
   if(reportOpen && page==='今日'){renderReport();return;}
   if(ritualKind && page==='今日') {renderRitual();return;}
   content.innerHTML = (page==='家规'?'':heading) + body;
+  if(page==='任务')prepareTaskShares();
   if(page==='档案'){
     renderProfilePortrait();
     content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section><section><h3>洗鞋照片记录</h3><div id="shoe-archive"></div></section>`);
@@ -180,7 +187,7 @@ function renderRitual() {
   const key=`${date}:${kind}:${evidence.photoId||'draft'}`;
   if(photoKey!==key) {
     photoKey=key;currentPhoto=null;photoLoading=true;
-    const pending=evidence.photoId?getPhoto(evidence.photoId):latestRitualPhoto(date,kind);
+    const pending=evidence.photoId?getPhoto(evidence.photoId):Promise.resolve(null);
     pending.then(photo=>{if(photoKey===key){currentPhoto=photo;photoLoading=false;if(ritualKind===kind&&page==='今日'&&!hidden)render();}}).catch(()=>{if(photoKey===key){photoLoading=false;notify('本机照片暂时无法读取，请重试拍照。');if(ritualKind===kind&&page==='今日'&&!hidden)render();}});
   }
   content.innerHTML=`<button class="back-button" data-action="close-ritual">‹ 返回日课</button><div class="eyebrow">${date} · ${state.settings[kind]}</div><section class="ritual-detail"><span class="ritual-emblem" aria-hidden="true">${done?'✓':'日'}</span><small>PERSONAL RITUAL</small><h2>${ritualNames[kind]}</h2><p>${done?'今日礼仪已完成。':'安静片刻，准备好后长按下方按钮。'}</p><small>${done?'已记录到本机 · 今日不重复计分':'完成后记录到本机 · 忠诚积分 +2'}</small></section>${done?`<article><h3>今日记录</h3><p>${escape(saved)}</p></article>`:'<label class="ritual-note">补充文字（可留空）<textarea id="ritual-note" maxlength="9900" placeholder="写下今天想记录的话…"></textarea></label>'}<div class="ritual-action"><button id="ritual-hold" class="hold-button" ${done||state.settings.paused?'disabled':''} aria-describedby="hold-help"><span class="hold-fill" aria-hidden="true"></span><span class="hold-label">${done?'今日已完成':state.settings.paused?'日课已暂停':'长按 3 秒 · 完成礼仪'}</span></button><p id="hold-help">${done?'明天可再次完成。':'松手或移出按钮即取消 · 键盘可持续按住空格或回车'}</p></div><p class="muted">本次礼仪仅保存在你的设备。</p>`;
@@ -191,7 +198,7 @@ function renderRitual() {
     content.lastElementChild.textContent=staticHosting?'请安记录保存在手机，照片可在回家后自动备份 NAS。':'请安记录留在本机，照片可同步至你的 NAS。';
     content.querySelector('.ritual-detail').insertAdjacentHTML('beforeend',`<div class="ritual-instruction"><p>${escape(ritualInstruction(kind))}</p><blockquote>${escape(done?(evidence.phrase||saved):ritualGreeting(kind,date))}</blockquote>${done?`<p>完成时间：${escape(evidence.completedTime||'时间未记录（旧数据）')}</p>`:''}<small>请自行朗读与完成；应用不录音，也不自动判断动作。</small></div>`);
     const photoPanel=document.createElement('section');photoPanel.className='photo-checkin';
-    photoPanel.innerHTML=`<h3>拍照打卡</h3><p id="photo-status" role="status">${photoStatus(currentPhoto)}</p><div id="photo-preview"></div>${!done?`<video id="ritual-camera" autoplay playsinline muted hidden aria-label="实时相机画面"></video><button data-action="start-camera" ${state.settings.paused?'disabled':''}>${currentPhoto?'重新拍照':'打开相机'}</button><button data-action="take-photo" hidden>拍下并保存</button><button data-action="stop-camera" hidden>取消拍摄</button>`:''}${currentPhoto?`<button data-action="download-photo" data-id="${escape(currentPhoto.id)}">下载照片</button>${!staticHosting?`<button data-action="sync-photo" data-id="${escape(currentPhoto.id)}">${currentPhoto.status==='uploaded'?'检查同步状态':'上传至 NAS'}</button>`:''}`:''}<p class="muted">${done?'旧记录无照片时不会自动补造。':'必须拍下并保存一张照片，才能长按完成礼仪。'} ${staticHosting?'照片先保存在手机，开启回家自动备份后可补传 NAS。':'NAS 上传状态以实际结果为准。'}</p>`;
+    photoPanel.innerHTML=`<h3>拍照打卡</h3><p id="photo-status" role="status">${photoStatus(currentPhoto)}</p><div id="photo-preview"></div>${!done?`<video id="ritual-camera" autoplay playsinline muted hidden aria-label="实时相机画面"></video><button data-action="start-camera" ${state.settings.paused?'disabled':''}>${currentPhoto?'重新拍照':'打开相机'}</button><button data-action="take-photo" hidden>拍下并预览</button><button data-action="stop-camera" hidden>取消拍摄</button>`:''}${!done&&currentPhoto?'<button data-action="discard-photo">取消使用这张照片</button>':''}${currentPhoto?`<button data-action="download-photo" data-id="${escape(currentPhoto.id)}">下载照片</button>${!staticHosting&&usedRitualPhoto(currentPhoto)?`<button data-action="sync-photo" data-id="${escape(currentPhoto.id)}">${currentPhoto.status==='uploaded'?'检查同步状态':'上传至 NAS'}</button>`:''}`:''}<p class="muted">${done?'旧记录无照片时不会自动补造。':'拍照后先预览，长按完成礼仪才保存；取消或离开不会保存未使用照片。'} ${staticHosting?'完成礼仪后照片才保存到手机，回家自动备份至 NAS。':'NAS 上传状态以实际结果为准。'}</p>`;
     const note=content.querySelector('.ritual-note');
     if(note)note.replaceWith(photoPanel);else content.querySelector('.ritual-action').before(photoPanel);
     if(currentPhoto){const image=document.createElement('img');image.alt='本次请安打卡照片';const url=URL.createObjectURL(currentPhoto.blob);photoUrls.push(url);image.src=url;photoPanel.querySelector('#photo-preview').append(image);}
@@ -204,13 +211,13 @@ function renderRitual() {
   const controller=createHoldController({now:()=>performance.now(),requestFrame:callback=>requestAnimationFrame(callback),cancelFrame:frame=>cancelAnimationFrame(frame),onProgress:progress=>{
     button.style.setProperty('--hold-progress',`${progress*100}%`);
     label.textContent=progress>0?`正在完成 · ${Math.ceil((1-progress)*3)} 秒`:'长按 3 秒 · 完成礼仪';
-  },onComplete:()=>{
+  },onComplete:async()=>{
     pointerId=null;heldKey=null;
     try {
       if(document.hidden || hidden || dayKey()!==date)throw Error('日期或页面已变化，请重新打开礼仪');
-      commit(draft=>completeRitual(draft,kind,currentPhoto,date));
+      const photo=currentPhoto,next=structuredClone(state);completeRitual(next,kind,photo,date);button.disabled=true;await savePhoto(photo);try{if(document.hidden||hidden||dayKey()!==date||ritualKind!==kind||currentPhoto?.id!==photo.id)throw Error('页面已变化，未使用照片已取消');commit(draft=>completeRitual(draft,kind,photo,date));}catch(error){if(!usedRitualPhoto(photo))await deletePhoto(photo.id);throw error;}if(staticHosting)lanBackup.run();else if(nasToken)syncSavedPhoto(photo).catch(()=>{});
       notify(`${ritualNames[kind]}已完成 · +2`);
-    }catch(error){controller.cancel();notify(error.message);}
+    }catch(error){controller.cancel();button.disabled=false;notify(error.message);}
   }});
   const cancel=()=>{pointerId=null;heldKey=null;controller.cancel();};
   cancelHold=cancel;
@@ -243,6 +250,7 @@ function stopCamera() {
 }
 function photoStatus(photo) {
   if(!photo)return photoLoading?'正在读取本机照片…':'尚未拍照 · 完成按钮未解锁';
+  if(!usedRitualPhoto(photo))return '照片仅供预览 · 完成礼仪后才保存';
   if(staticHosting)return mediaStatus(photo,true);
   return photo.status==='uploaded'?'照片已保存到 NAS · 日课请安':'照片已保存在本机 · NAS 待同步';
 }
@@ -273,7 +281,7 @@ async function takePhoto() {
   if(!video || !cameraStream || !cameraStream.getVideoTracks().some(track=>track.readyState==='live'))throw Error('请先打开相机');
   photoCapturing=true;
   try {
-    const photo=await capturePhoto(video,date,kind);
+    const photo=await capturePhoto(video,date,kind,{persist:false});
     currentPhoto=photo;photoKey=`${date}:${kind}:draft`;photoLoading=false;stopCamera();
     if(ritualKind===kind && page==='今日'&&!hidden)render();
     notify('照片已保存到本机，可以长按完成礼仪');
@@ -298,7 +306,7 @@ async function syncSavedPhoto(photo) {
 async function syncPendingPhotos() {
   if(staticHosting)throw Error('网页版不提供 NAS 上传服务');
   if(!nasToken)throw Error('请先在隐私页填写本机上传服务连接密钥');
-  const photos=(await listPhotos()).filter(photo=>photo.status!=='uploaded');
+  const photos=(await listPhotos()).filter(photo=>usedRitualPhoto(photo)&&photo.status!=='uploaded');
   if(!photos.length){notify('没有待同步照片');return;}
   let uploaded=0;
   for(const photo of photos){try{if(await syncSavedPhoto(photo))uploaded++;}catch(error){notify(`已同步 ${uploaded} 张，其余保留在本机：${error.message}`);return;}}
@@ -342,7 +350,7 @@ async function nasStatus() {
 async function renderPhotoAlbum() {
   const element=document.querySelector('#photo-album');if(!element)return;
   try{
-    const photos=(await listPhotos()).sort((first,second)=>second.createdAt.localeCompare(first.createdAt));
+    const photos=(await listPhotos()).filter(usedRitualPhoto).sort((first,second)=>second.createdAt.localeCompare(first.createdAt));
     if(!element.isConnected||hidden)return;
     const previousUrls=new Set([...element.querySelectorAll('img')].map(image=>image.src));
     for(const url of previousUrls)if(url.startsWith('blob:'))URL.revokeObjectURL(url);
@@ -355,6 +363,9 @@ async function renderPhotoAlbum() {
       const image=document.createElement('img');image.alt=`${photo.date} 请安打卡照片`;image.loading='lazy';const url=URL.createObjectURL(photo.blob);photoUrls.push(url);image.src=url;item.prepend(image);element.append(item);
     }
   }catch{if(element.isConnected)element.textContent='照片读取失败，请检查本机存储。';}
+}
+async function prepareTaskShares(){
+ taskShares=new Map();const shares=taskShares;for(const task of structuredClone(state.tasks)){const button=content.querySelector('[data-action="share-task"][data-id="'+CSS.escape(task.id)+'"]');if(!button)continue;try{let blob,date;if(taskType(task)==='shoe'){const record=structuredClone(state.shoeRecords.filter(r=>r.taskId===task.id).at(-1)||{id:crypto.randomUUID(),taskTitle:task.title,date:dayKey(),createdAt:task.startedAt||'',savedAt:'',shoes:[],note:''}),prepared=await buildShoeCard(record,getShoePhoto,{allowIncomplete:true,task});blob=prepared.file;date=record.date;}else{const prepared=await buildTaskCard(task,{snapshot:true});blob=prepared.blob;date=prepared.date;}if(shares!==taskShares||!button.isConnected)return;shares.set(task.id,{blob,date,title:task.title});button.disabled=false;}catch(error){if(button.isConnected){button.textContent='截图未就绪';button.title=error.message;}}}
 }
 async function renderProfilePortrait(){
  const holder=content.querySelector('#profile-portrait');if(!holder)return;let displayed=false;
@@ -438,7 +449,7 @@ document.addEventListener('dblclick',event=>event.preventDefault(),{passive:fals
 document.addEventListener('click',async event=>{
   const button=event.target.closest('button'); if(!button) return;
   try {
-    if(button.dataset.page) {page=button.dataset.page;ritualKind=null;reportOpen=false;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':page==='家规'?'#rules':''));render();window.scrollTo(0,0);return;}
+    if(button.dataset.page) {discardUnusedPhoto();page=button.dataset.page;ritualKind=null;reportOpen=false;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':page==='家规'?'#rules':''));render();window.scrollTo(0,0);return;}
     const action=button.dataset.action;
     if(action==='release-log'){document.querySelector('#release-log').showModal();return;}
     if(action==='close-release-log'){document.querySelector('#release-log').close();return;}
@@ -446,6 +457,8 @@ document.addEventListener('click',async event=>{
     if(action==='close-certificate-guide'){document.querySelector('#certificate-guide').close();return;}
     if(action==='copy-certificate-address'){const field=document.querySelector('#certificate-install-address');try{await navigator.clipboard.writeText(field.value);notify('安装地址已复制，请打开 Safari 粘贴');}catch{field.focus();field.select();notify('请长按地址复制，再打开 Safari 粘贴');}return;}
 
+    if(action==='discard-photo'){discardUnusedPhoto();render();notify('已取消使用，照片未保存');return;}
+    if(action==='share-task'){const prepared=taskShares.get(button.dataset.id);if(!prepared)throw Error('任务截图正在准备，请稍后点击');try{await shareTaskFile(prepared.blob,prepared.date,prepared.title,undefined,'状态图');notify('请在分享菜单选择微信和接收人');}catch(error){if(error.name==='AbortError'){notify('已取消分享，任务记录保留');return;}throw error;}return;}
     if(action==='add-task'){content.querySelector('#add-task-dialog').showModal();return;}
     if(action==='close-add-task'){content.querySelector('#add-task-dialog').close();return;}
     if(action==='open-task'){location.hash='task/'+encodeURIComponent(button.dataset.id);return;}
@@ -472,7 +485,7 @@ document.addEventListener('click',async event=>{
     if(action==='take-photo')await takePhoto();
     if(action==='stop-camera')stopCamera();
     if(action==='download-photo'){
-      const photo=await getPhoto(button.dataset.id);if(!photo)throw Error('本机照片不存在');
+      const photo=currentPhoto?.id===button.dataset.id?currentPhoto:await getPhoto(button.dataset.id);if(!photo)throw Error('本机照片不存在');
       const url=URL.createObjectURL(photo.blob);const link=document.createElement('a');link.href=url;link.download=`${photo.date}-${photo.kind}-${photo.id}.jpg`;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
     }
     if(action==='sync-photo'){
@@ -485,7 +498,7 @@ document.addEventListener('click',async event=>{
       const url=URL.createObjectURL(report.blob);const link=document.createElement('a');link.href=url;link.download=`${report.date}.png`;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
     }
     if(action==='open-ritual') {location.hash=`ritual/${button.dataset.kind}`;return;}
-    if(action==='close-ritual') {history.replaceState(null,'',location.pathname+location.search);ritualKind=null;render();return;}
+    if(action==='close-ritual') {discardUnusedPhoto();history.replaceState(null,'',location.pathname+location.search);ritualKind=null;render();return;}
     if(button.id==='veil') {hidden=true;render();}
     if(action==='reveal') {hidden=false;render();}
     if(action==='complete') commit(draft=>completeTask(draft,button.dataset.id));
@@ -536,7 +549,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.sett
 document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelHold();stopCamera();}});
 window.addEventListener('pagehide',stopCamera);
 window.addEventListener('blur',()=>cancelHold());
-window.addEventListener('hashchange',()=>{readRitualRoute();render();});
+window.addEventListener('hashchange',()=>{discardUnusedPhoto();readRitualRoute();render();});
 window.addEventListener('online',()=>{render();retryMedia();});window.addEventListener('offline',render);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)retryMedia();});
 readRitualRoute();

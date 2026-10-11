@@ -36,6 +36,7 @@ async function operation(mode,action,storeName='photos',epoch) {
   });
 }
 export const savePhoto=photo=>operation('readwrite',store=>store.put(photo));
+export const deletePhoto=id=>operation('readwrite',store=>store.delete(id));
 export const getPhoto=id=>operation('readonly',store=>store.get(id));
 export const listPhotos=()=>operation('readonly',store=>store.getAll());
 export const clearPhotos=()=>{resetPhotoUploads();return operation('readwrite',store=>store.clear());};
@@ -61,7 +62,7 @@ export async function clearMedia(){
 export async function latestRitualPhoto(date,kind) {
   return (await listPhotos()).filter(photo=>photo.date===date&&photo.kind===kind).sort((first,second)=>second.createdAt.localeCompare(first.createdAt))[0] || null;
 }
-export async function capturePhoto(video,date,kind='morning') {
+export async function capturePhoto(video,date,kind='morning',{persist=true}={}) {
   const epoch=photoGeneration;
   if(!video.videoWidth || !video.videoHeight)throw Error('相机画面尚未就绪，请稍后再拍');
   const canvas=document.createElement('canvas');
@@ -74,7 +75,7 @@ export async function capturePhoto(video,date,kind='morning') {
   if(!blob || !blob.size || blob.size>8_000_000)throw Error('照片处理失败或过大，请重拍');
   if(epoch!==photoGeneration)throw Error('本机数据已清空，旧拍照操作已取消');
   const photo={id:crypto.randomUUID(),date,kind,source:'camera',createdAt:new Date().toISOString(),blob,status:'pending',remotePath:'',error:''};
-  await savePhoto(photo);
+  if(persist)await savePhoto(photo);
   return photo;
 }
 export async function syncPhoto(photo,token,{fetcher=fetch,persist=savePhoto}={}) {
