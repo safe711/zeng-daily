@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadContent</key>
+			<data>
+			MIIC6jCCAdKgAwIBAgIUOj1bcTniib8Nrk6ccyQzPJX0o1YwDQYJ
+			KoZIhvcNAQELBQAwGzEZMBcGA1UEAwwQ5pel6K++5a625bqtIE5B
+			UzAeFw0yNjEwMTAwMjM0MzFaFw0zMTEwMTAwMjM0MzFaMBsxGTAX
+			BgNVBAMMEOaXpeivvuWutuW6rSBOQVMwggEiMA0GCSqGSIb3DQEB
+			AQUAA4IBDwAwggEKAoIBAQCw38Q6zCuM0bgPLW9nrI/EZik+5/0i
+			0FRnlOCSVCumMV/iKDKv3nvnfjXRPRMWlhzwKT/0xXFNljyX+n5d
+			G707lX5s9AyVvWXVTjJVDJF29G4OKUxDAqUx9rUDPaGjhm/ZuQV+
+			0+PTyWuwscX5KwkhZyPwOiAvDgkC8kPG3M6mcA6C+6Vznyym7XQN
+			H6masdadgGxRMXTaa71NYTpHN1Xj8nGKDU0yPE9q1iHoiVpJBEIl
+			v5YMwrkTwNsoiNK6tgm7HMrU4jLvGxS+GNoB6tMjIvQyQVGSnmME
+			tGnXQiu8KZwZ3I/1hnQsJZsk3kTQUfF8bxdX1iXU5O2PVRE+3Ou5
+			AgMBAAGjJjAkMBIGA1UdEwEB/wQIMAYBAf8CAQAwDgYDVR0PAQH/
+			BAQDAgEGMA0GCSqGSIb3DQEBCwUAA4IBAQAfcWFXk9WuPBNIDykB
+			9+2pYws2q0PiBDVbTILb0mAW/Od77SC3VJ6YvB/LKfR33BMmRI24
+			S02PihzBO9vaY7CX+y/81SDvgUd7tuJ41weo8lLdlWJKiw3VKRnW
+			qgVbvFMjHQO7rQ0hcC20EaNa3dSnKKe4HdX7V6Pf+MlsO88X+3Jl
+			ZBqXBnWgt9VaSgAO5k/Fa1HiUiw6gRARg5yqzvVAjrHvkfaLULU5
+			XRknsnqu1JvNTmqHw2VEburshnTHEtsXvGJU+V0GoOZKMdehiM/B
+			VVTTjD9+1xjNSCQ8++ShecWB8E53HUwvpaXnueywTdYfa1ZDeond
+			jokvCDh/dwd5
+			</data>
+			<key>PayloadDisplayName</key>
+			<string>日课家庭 NAS</string>
+			<key>PayloadIdentifier</key>
+			<string>safe711.zengdaily.lan.root</string>
+			<key>PayloadType</key>
+			<string>com.apple.security.root</string>
+			<key>PayloadUUID</key>
+			<string>c6d4957d-1f8f-4082-9adc-dbc5901b3115</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+		</dict>
+	</array>
+	<key>PayloadDescription</key>
+	<string>仅用于信任家中 192.168.1.20 的日课 HTTPS 备份接口。</string>
+	<key>PayloadDisplayName</key>
+	<string>日课家庭 NAS 连接证书</string>
+	<key>PayloadIdentifier</key>
+	<string>safe711.zengdaily.lan</string>
+	<key>PayloadRemovalDisallowed</key>
+	<false/>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>d86b8bbb-9c9a-4595-baad-a375b8e7cb9e</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>
