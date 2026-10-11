@@ -2,11 +2,13 @@ import {subscriptionDefaults,validateSubscription} from './subscription.js';
 export const STORAGE_KEY = 'zeng-daily-v1';
 export const RITUAL_KINDS=['morning','noon','evening','gratitude'];
 export const RITUAL_NAMES={morning:'晨间磕头请安',noon:'午间请安',evening:'晚间磕头请安',gratitude:'晚间谢恩'};
+export const MAX_SHOES=20;
+export const validMediaId=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value);
 export function dayKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
 export function initialState() {
-  return {version:4,subscription:subscriptionDefaults(),days:{},tasks:[{id:'shoe',title:'洗鞋',status:'active',confirmed:false,note:'已开展；具体要求尚未确认。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false},{id:'socks',title:'袜子赏赐',status:'possible',confirmed:false,note:'可能的赏赐，尚未发生；不作为已获嘉奖。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false}],records:[],ledger:[],profile:{name:'',notes:''},settings:{hideOnLeave:true,paused:false,morning:'08:00',noon:'',evening:'21:00',gratitude:''}};
+  return {version:4,subscription:subscriptionDefaults(),days:{},tasks:[{id:'shoe',title:'洗鞋',status:'active',confirmed:false,note:'已开展；具体要求尚未确认。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false},{id:'socks',title:'袜子赏赐',status:'possible',confirmed:false,note:'可能的赏赐，尚未发生；不作为已获嘉奖。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false}],shoeRecords:[],records:[],ledger:[],profile:{name:'',notes:''},settings:{hideOnLeave:true,paused:false,morning:'08:00',noon:'',evening:'21:00',gratitude:''}};
 }
 export function validDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000')) return false;
@@ -39,6 +41,7 @@ export function migrateState(state) {
     state={...state,version:3,days,settings:{noon:'',gratitude:'',...state.settings}};
   }
   if(state?.version===3)state={...state,version:4,subscription:subscriptionDefaults()};
+  if(state?.version===4&&state.shoeRecords===undefined)state={...state,shoeRecords:[]};
   return state;
 }
 export function validateState(state) {
@@ -63,6 +66,21 @@ export function validateState(state) {
     if (!task || !string(task.id) || ids.has(task.id) || !string(task.title) || !task.title.trim() || !string(task.note) || !['active','possible','archived'].includes(task.status) || typeof task.confirmed !== 'boolean' || typeof task.done !== 'boolean') throw Error('任务数据无效');
     validateTaskSchedule(task);
     ids.add(task.id);
+  }
+  if(!Array.isArray(state.shoeRecords)||state.shoeRecords.length>2000)throw Error('洗鞋记录列表无效');
+  const shoeRecordIds=new Set();const shoeIds=new Set();const shoePhotoIds=new Set();
+  const timestamp=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
+  for(const record of state.shoeRecords){
+    if(!record||!Object.keys(record).every(key=>['id','taskId','taskTitle','date','note','createdAt','updatedAt','savedAt','shoes'].includes(key))||!validMediaId(record.id)||shoeRecordIds.has(record.id)||!ids.has(record.taskId)||!string(record.taskTitle)||!record.taskTitle.trim()||!validDate(record.date)||!string(record.note)||record.note.length>2000||!timestamp(record.createdAt)||!timestamp(record.updatedAt)||record.updatedAt<record.createdAt||!(record.savedAt===''||timestamp(record.savedAt)&&record.savedAt>=record.createdAt&&record.savedAt<=record.updatedAt)||!Array.isArray(record.shoes)||!record.shoes.length||record.shoes.length>MAX_SHOES)throw Error('洗鞋记录结构无效');
+    shoeRecordIds.add(record.id);
+    for(const shoe of record.shoes){
+      if(!shoe||!Object.keys(shoe).every(key=>['id','beforePhotoId','afterPhotoId'].includes(key))||!validMediaId(shoe.id)||shoeIds.has(shoe.id))throw Error('鞋子编号无效或重复');
+      shoeIds.add(shoe.id);
+      for(const field of ['beforePhotoId','afterPhotoId']){
+        const id=shoe[field];if(id!==null&&(!validMediaId(id)||shoePhotoIds.has(id)))throw Error('洗鞋照片关联无效或重复');
+        if(id!==null)shoePhotoIds.add(id);if(record.savedAt&&id===null)throw Error('已保存洗鞋记录缺少前后照片');
+      }
+    }
   }
   for (const record of state.records) if (!record || !string(record.text) || !string(record.date)) throw Error('记录无效');
   for (const entry of state.ledger) if (!entry || !Number.isSafeInteger(entry.points) || Math.abs(entry.points)>1000 || !['reward','warning','daily','task'].includes(entry.kind) || !string(entry.text) || !string(entry.date)) throw Error('积分数据无效');
@@ -90,4 +108,42 @@ export function completeTask(state,id,date=dayKey()) {
   task.done = true;
   state.records.push({date,text:`完成任务：${task.title}`});
   state.ledger.push({date,kind:'task',points:3,text:task.title});
+}
+function editableShoeRecord(state,id){
+  if(state.settings.paused)throw Error('日课已暂停');
+  const record=state.shoeRecords.find(item=>item.id===id);if(!record)throw Error('洗鞋记录不存在');
+  return record;
+}
+export function createShoeRecord(state,taskId,date=dayKey(),now=new Date()){
+  if(state.settings.paused)throw Error('日课已暂停');
+  const task=state.tasks.find(item=>item.id===taskId);
+  if(!task||task.status!=='active')throw Error('请为已开展的洗鞋任务添加记录');
+  if(!validDate(date)||date>dayKey(now))throw Error('请选择实际洗鞋日期，不可晚于今天');
+  if(state.shoeRecords.length>=2000)throw Error('洗鞋记录已达上限，请先备份');
+  const timestamp=now.toISOString();
+  const record={id:crypto.randomUUID(),taskId,taskTitle:task.title,date,note:'',createdAt:timestamp,updatedAt:timestamp,savedAt:'',shoes:[{id:crypto.randomUUID(),beforePhotoId:null,afterPhotoId:null}]};
+  state.shoeRecords.push(record);return record.id;
+}
+export function addShoe(state,recordId){
+  const record=editableShoeRecord(state,recordId);if(record.shoes.length>=MAX_SHOES)throw Error(`每次记录最多添加 ${MAX_SHOES} 双鞋`);
+  record.shoes.push({id:crypto.randomUUID(),beforePhotoId:null,afterPhotoId:null});record.savedAt='';record.updatedAt=new Date().toISOString();
+}
+export function removeEmptyShoe(state,recordId,shoeId){
+  const record=editableShoeRecord(state,recordId);const shoe=record.shoes.find(item=>item.id===shoeId);
+  if(!shoe||record.shoes.length<=1||shoe.beforePhotoId||shoe.afterPhotoId)throw Error('仅可移除尚未添加照片的空项，至少保留一双鞋');
+  record.shoes=record.shoes.filter(item=>item.id!==shoeId);record.savedAt='';record.updatedAt=new Date().toISOString();
+}
+export function attachShoePhoto(state,recordId,shoeId,phase,photoId){
+  const record=editableShoeRecord(state,recordId);const shoe=record.shoes.find(item=>item.id===shoeId);
+  if(!shoe||!['before','after'].includes(phase)||!validMediaId(photoId))throw Error('鞋子或洗前洗后照片编号无效');
+  shoe[`${phase}PhotoId`]=photoId;record.savedAt='';record.updatedAt=new Date().toISOString();
+}
+export function saveShoeRecord(state,recordId,note,now=new Date()){
+  const record=editableShoeRecord(state,recordId);
+  if(typeof note!=='string'||note.length>2000)throw Error('洗鞋备注不能超过 2000 字');
+  if(record.shoes.some(shoe=>!shoe.beforePhotoId||!shoe.afterPhotoId))throw Error('请为每双鞋补齐洗之前、洗之后的照片');
+  record.note=note.trim();record.savedAt=now.toISOString();record.updatedAt=record.savedAt;
+  const text=`${record.taskTitle} · ${record.shoes.length} 双鞋前后对照照片已保存在本机${record.note?`\n${record.note}`:''}`;
+  const previous=state.records.find(item=>item.shoeRecordId===record.id);
+  if(previous){previous.date=record.date;previous.text=text;}else state.records.push({date:record.date,text,shoeRecordId:record.id});
 }

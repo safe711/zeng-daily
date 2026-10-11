@@ -2,6 +2,8 @@ import {dayKey} from './model.js';
 import {configureSubscription,recordPayment,signPayment,subscriptionStatus,formatAmount,subscriptionAgreement,mediaFingerprint} from './subscription.js';
 import {saveSubscriptionMedia,getSubscriptionMedia,deleteSubscriptionMedia} from './photos.js';
 import {createSignaturePad} from './signature.js';
+import {paymentLink,embeddedContract,verifiedPaymentLink} from './integrations.js';
+import {unsealContract} from './contractcrypto.js';
 const escape=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 function saveBlob(blob,name){const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 export async function checkContract(file){
@@ -11,27 +13,37 @@ export async function checkContract(file){
   const bitmap=await createImageBitmap(file).catch(()=>{throw Error('无法读取协议图片，请换用清晰的 PNG 或 JPEG');});
   const pixels=bitmap.width*bitmap.height;bitmap.close();if(pixels>20_000_000)throw Error('协议图片分辨率过高，请选择较小的原件图片');
 }
-export function mountSubscription(container,state,{commit,notify}){
+export function mountSubscription(container,state,{commit,notify,getPrivateConfig=()=>null}){
   let alive=true;let busy=false;let pad=null;const urls=[];const subscription=state.subscription;const status=subscriptionStatus(subscription,dayKey());
   const pending=status.pending;const latest=status.latest;
-  const renewal=status.renewalDate?`${status.renewalDate}（本地日历日）`:'首笔付款并签字后计算';
+  const renewal=status.renewalDate||'尚未开通';
   const due=status.remainingDays===null?'':status.remainingDays<0?`已到期 ${-status.remainingDays} 天`:status.remainingDays===0?'今日到期':`距续费 ${status.remainingDays} 天`;
   const restoreInput=(id,fingerprint,kind,paymentId='')=>`<label class="muted">恢复对应${kind==='signature'?'本人签名':'原件'}图片备份<input type="file" accept="image/png,image/jpeg" data-restore-id="${id}" data-restore-fingerprint="${fingerprint}" data-restore-kind="${kind}" data-payment-id="${paymentId}"></label>`;
   container.insertAdjacentHTML('beforeend',`<div class="subscription-view">
-    <div class="subscription-toolbar"><button type="button" data-sub="view-contract">查看契约</button><small>手签原件 · 仅本机查看</small></div>
-    <section class="subscription-overview" aria-label="订阅状态"><small>MANUAL SUBSCRIPTION · 本人付款记录</small><h3>${escape(status.label)}</h3><div class="subscription-amount">${subscription.plan.amountCents?`¥ ${formatAmount(subscription.plan.amountCents)} <small>/ 月</small>`:'月费尚未设置'}</div><dl><div><dt>续费时间</dt><dd>${escape(renewal)}</dd></div><div><dt>到期提示</dt><dd>${escape(subscription.stopped?'提示已停止':due||'尚无本期记录')}</dd></div><div><dt>付款核验</dt><dd>本人自记 · 未核实到账</dd></div></dl><p class="muted">每笔手动付款并签字后登记一个日历月；提前续费接续上一期，逾期则从付款日重新起算。不会自动扣款，也不会影响礼仪或积分。</p></section>
-    <section class="subscription-agreement"><h3>月度订阅确认书</h3><p>本人手动付款 · 不设长期固定期限 · 不代第三方签署</p><details ${pending?'open':''}><summary>阅读${pending?'本笔':'当前'}月度确认文本</summary><p class="agreement-text">${escape(pending?.agreementText||subscriptionAgreement(subscription.plan.amountCents,subscription.plan.payee))}</p></details><small>本页文本版本：monthly-personal-v1${pending?' · 以本笔付款保存时的内容为准':''}</small></section>
+    <section class="subscription-overview" aria-label="订阅状态"><small>SUBSCRIPTION</small><h3>${escape({'not-configured':'待设置','not-started':'未开通','pending-signature':'待签字',active:'本期有效 · 本人确认','due-soon':'即将到期 · 本人确认',expired:'已到期',scheduled:'下期已确认',stopped:'已暂停'}[status.code])}</h3><div class="subscription-amount">${subscription.plan.amountCents?`¥ ${formatAmount(subscription.plan.amountCents)} <small>/ 月</small>`:'月费尚未设置'}</div><dl><div><dt>续费时间</dt><dd>${escape(renewal)}</dd></div>${due?`<div><dt>到期提示</dt><dd>${escape(subscription.stopped?'提示已停止':due)}</dd></div>`:''}</dl></section>
+    <div class="subscription-primary"><button type="button" class="subscription-pay" data-sub="pay" ${!paymentLink||pending||subscription.stopped?'disabled':''}>付款 · ¥ ${formatAmount(subscription.plan.amountCents)}</button>${!paymentLink?'<small class="muted">收款码待接入</small>':''}${!pending?`<button type="button" class="subscription-confirm-payment" data-sub="confirm-payment" ${!subscription.contractId||subscription.stopped?'disabled':''}>已付款，去签字</button>`:''}</div>
+    <div class="subscription-toolbar"><button type="button" data-sub="view-contract">查看契约</button><button type="button" data-sub="manage">管理</button></div>
+    <section class="subscription-declaration" aria-label="契约文字"><p class="subscription-declaration-text">“协议已签署，终身生效，直至狗奴父母死亡。”</p></section>
+    <dialog class="subscription-management contract-viewer" aria-labelledby="subscription-management-title"><div class="contract-viewer-header"><h3 id="subscription-management-title">订阅管理</h3><button type="button" data-sub="close-management">关闭管理</button></div>
+    <section class="subscription-agreement"><details><summary>${pending?'本笔':'当前'}确认文本</summary><p class="agreement-text">${escape(pending?.agreementText||subscriptionAgreement(subscription.plan.amountCents,subscription.plan.payee))}</p></details></section>
     <section><details class="subscription-original"><summary>历史协议原件 · 仅本机备查</summary><p class="muted">原件和本人的新签名只保存在此浏览器，不上传 NAS，不随礼仪图片分享，也不放进文字 JSON 备份。本页月度方案不设长期固定期限；原图片保留原貌，并未涂改已有签字。</p><div id="subscription-contract" aria-live="polite">${subscription.contractId?'正在读取本机协议…':'尚未导入协议原件。'}</div><label>导入或更换协议图片（PNG / JPEG，最多 8 MB）<input id="subscription-contract-input" type="file" accept="image/png,image/jpeg"></label><button type="button" data-sub="expand-contract" ${subscription.contractId?'':'disabled'}>展开 / 收起原件</button><button type="button" data-sub="download-contract" ${subscription.contractId?'':'disabled'}>单独备份当前协议</button><p class="muted">原件的旧金额、旧期限及既有签字不自动用于本页月度确认。更换原件不会改变历史付款关联的原件。</p></details>${subscription.contractId?'':'<p class="muted">请展开历史原件并导入图片，之后才能登记付款。</p>'}</section>
     <section><h3>月度方案 · 手动付款</h3><form data-sub-form="plan"><label>每月金额（人民币，需你自行确认）<input name="amount" type="text" inputmode="decimal" maxlength="10" required value="${subscription.plan.amountCents?formatAmount(subscription.plan.amountCents):''}" placeholder="尚未确认，先留空"></label><label>收款方备注（选填，不会据此转账）<input name="payee" type="text" maxlength="2000" value="${escape(subscription.plan.payee)}" placeholder="自行填写称呼或已核对的账号"></label><p class="muted">仅保存金额和备注，不生成收款码。请在支付宝自行核对收款人并完成付款。方案修改仅影响之后的新付款记录。</p><button type="submit">保存月度方案</button></form></section>
-    <section class="subscription-payment"><h3>付款后登记</h3><p>先在支付宝完成付款，再回到这里登记；点击按钮不会发起付款，也不表示收款方确认到账。</p>${pending?`<p class="gold">${escape(pending.paidDate)} · ¥ ${formatAmount(pending.amountCents)} 已自记，等待本人签字。</p>`:`<form data-sub-form="payment"><label>实际付款日期<input name="paidDate" type="date" value="${dayKey()}" max="${dayKey()}" required></label><label>付款备注（选填）<textarea name="note" maxlength="2000" placeholder="可记录本次付款用途；不需要支付密码或验证码"></textarea></label><label class="check"><input name="paid" type="checkbox" required>我已自行完成本笔付款，仅作本人记录</label><button type="submit" ${!subscription.plan.amountCents||!subscription.contractId||subscription.stopped?'disabled':''}>已手动付款 · 下一步本人签字</button></form>`}</section>
-    <section class="subscription-signing"><h3>本人手写签字</h3>${pending?`<p>本次自记：${escape(pending.paidDate)} · ¥ ${formatAmount(pending.amountCents)}。关联付款时的协议原件，不会覆盖原件上的签字。</p><div id="signing-contract-status" role="status">正在核对本笔协议原件…</div><canvas id="subscription-signature" aria-label="本人手写签名板"></canvas><p id="signature-status" role="status">请用手指、触控笔或鼠标写下本人姓名。</p><button type="button" data-sub="clear-signature">清除重写</button><label class="check"><input id="signature-consent" type="checkbox">我已阅读本页月度确认书，仅以本人身份确认本次付款记录，未代表父母或任何第三方签署，也未开通自动扣款</label><button type="button" data-sub="save-signature" disabled>保存本人签字与本期记录</button><p class="muted">此功能只保存手写图像，不验证身份、不生成第三方签名或指纹，不是电子签章服务。保存前请自行确认内容。</p>`:`<p class="muted">${latest?'已有本人签字记录。下次手动续费后需要重新签字。':'先导入原件、设置月费并登记实际付款，才会打开签名板。'}</p>`}</section>
+    <section class="subscription-payment">${pending?`<p class="gold">${escape(pending.paidDate)} · ¥ ${formatAmount(pending.amountCents)} · 待签字</p>`:`<form data-sub-form="payment"><label>付款日期<input name="paidDate" type="date" value="${dayKey()}" max="${dayKey()}" required></label><label>备注（选填）<textarea name="note" maxlength="2000"></textarea></label><label class="check"><input name="paid" type="checkbox" required>本笔付款已由我完成</label><button type="submit" ${!subscription.plan.amountCents||!subscription.contractId||subscription.stopped?'disabled':''}>继续签字</button></form>`}</section>
+    <section class="subscription-signing"><h3>手写签字</h3>${pending?`<p>${escape(pending.paidDate)} · ¥ ${formatAmount(pending.amountCents)}</p><div id="signing-contract-status" role="status">正在核对契约…</div><canvas id="subscription-signature" aria-label="本人手写签名板"></canvas><p id="signature-status" role="status">请写下本人姓名。</p><button type="button" data-sub="clear-signature">清除重写</button><label class="check"><input id="signature-consent" type="checkbox">我已核对契约及本次月度付款，确认以上为本人签名</label><button type="button" data-sub="save-signature" disabled>确认签字</button>`:`<p class="muted">${latest?'下次付款后可再次签字。':'付款完成后可签字。'}</p>`}</section>
     <section><h3>续费提示</h3><p>仅在打开应用时展示状态和日期。本版本无法保证关闭 iPhone 应用后的定时推送；可在系统提醒事项中另设中性标题。</p><button type="button" data-sub="toggle-reminder">${subscription.stopped?'恢复续费提示':'停止续费提示'}</button><p class="muted">停止仅关闭本应用的提示，不撤销已发生的支付、不处理退款，也不改变外部协议。任何实际扣款协议应在支付宝管理。</p></section>
     <section><h3>付款与签字历史</h3><p class="muted">共 ${subscription.payments.length} 笔，显示最近 20 笔。文字备份保留完整元数据及本笔确认文本；原件图片和签名请在这里单独下载。</p>${subscription.payments.slice(-20).reverse().map(payment=>`<article class="subscription-history"><h4>${escape(payment.paidDate)} · ¥ ${formatAmount(payment.amountCents)}</h4><p>${payment.status==='signed'?'已保存本人签字':'待本人签字'} · 自记未核验</p><p>本期起始 ${escape(payment.periodStart)}<br>下次续费 ${escape(payment.periodEnd)}${payment.payee?`<br>收款方备注：${escape(payment.payee)}`:''}${payment.note?`<br>备注：${escape(payment.note)}`:''}</p>${payment.signedAt?`<small>签字时间：${escape(new Date(payment.signedAt).toLocaleString())}</small>`:''}<details><summary>本笔月度确认文本</summary><p>${escape(payment.agreementText)}</p></details><div class="signature-preview" data-signature-preview="${escape(payment.id)}"></div><button type="button" data-sub="download-payment-contract" data-id="${escape(payment.id)}">备份本笔原件</button>${payment.signatureId?`<button type="button" data-sub="download-signature" data-id="${escape(payment.id)}">备份本人签名</button>`:''}</article>`).join('')||'<p class="muted">尚无付款记录。</p>'}</section>
-    <section class="subscription-declaration" aria-label="契约备注"><h3>契约备注</h3><p class="subscription-declaration-text">“协议已签署，终身生效，直至狗奴父母死亡。”</p><p class="muted">契约文字展示，不替代实际付款或签字记录。订阅状态及续费日期以上方记录为准。</p><p class="muted">本人签字记录：${pending?'本笔付款仍待本人签字。':latest?'已有本人签字记录，可在历史中查看。':'尚无本人签字记录。'}</p></section>
-    <dialog class="contract-viewer" aria-labelledby="contract-viewer-title"><div class="contract-viewer-header"><h3 id="contract-viewer-title">手签契约</h3><button type="button" data-sub="close-contract" autofocus>关闭契约</button></div><p class="muted">本机保存的原图，保留原有手签与指纹。</p><div class="contract-viewer-image"></div></dialog>
+    </dialog>
+    <dialog class="subscription-payment-dialog contract-viewer" aria-labelledby="subscription-payment-title"><div class="contract-viewer-header"><h3 id="subscription-payment-title">确认付款</h3><button type="button" data-sub="close-payment">关闭</button></div><div class="subscription-payment-body"></div><p class="muted">由本人确认，未核验到账。</p></dialog>
+    <dialog class="contract-unlock contract-viewer" aria-labelledby="contract-unlock-title"><div class="contract-viewer-header"><h3 id="contract-unlock-title">解锁契约</h3><button type="button" data-sub="close-unlock">关闭</button></div><form data-sub-form="unlock"><label>独立查看密码<input name="password" type="password" minlength="12" maxlength="256" autocomplete="off" required></label><button type="submit">解锁并查看</button></form></dialog>
+    <dialog class="contract-viewer subscription-contract-viewer" aria-labelledby="contract-viewer-title"><div class="contract-viewer-header"><h3 id="contract-viewer-title">手签契约</h3><button type="button" data-sub="close-contract" autofocus>关闭契约</button></div><div class="contract-viewer-image"></div></dialog>
   </div>`);
   const root=container.querySelector('.subscription-view');let contractAvailable=false;
-  const viewer=root.querySelector('.contract-viewer');let viewerUrl='';
+  const management=root.querySelector('.subscription-management');
+  const paymentDialog=root.querySelector('.subscription-payment-dialog');
+  const unlockDialog=root.querySelector('.contract-unlock');
+  paymentDialog.querySelector('.subscription-payment-body').append(root.querySelector('.subscription-payment'));
+  if(pending)management.before(root.querySelector('.subscription-signing'));
+  const viewer=root.querySelector('.subscription-contract-viewer');let viewerUrl='';
   function clearViewer(){if(viewerUrl)URL.revokeObjectURL(viewerUrl);viewerUrl='';viewer.querySelector('.contract-viewer-image').replaceChildren();}
   viewer.addEventListener('close',clearViewer);
   if(subscription.contractId)root.querySelector('.subscription-original').insertAdjacentHTML('beforeend',restoreInput(subscription.contractId,subscription.contractFingerprint,'contract'));
@@ -63,6 +75,31 @@ export function mountSubscription(container,state,{commit,notify}){
     await saveSubscriptionMedia(asset);
     try{if(!alive)throw Error('页面已离开，未提交记录；请重新打开后操作');commit(change);}catch(error){if(previous&&alive)await saveSubscriptionMedia(previous).catch(()=>{});else await deleteSubscriptionMedia(asset.id).catch(()=>{});throw error;}
   }
+  async function importPrivateContract(){
+    if(busy||subscription.contractId||!getPrivateConfig()?.contractAvailable)return;busy=true;
+    try{
+      const response=await fetch('./api/private/contract',{credentials:'same-origin',redirect:'error',signal:AbortSignal.timeout(15000)});
+      if(!response.ok||Number(response.headers.get('content-length'))>8_000_000)throw Error('私有契约暂时无法读取');
+      const blob=await response.blob();await checkContract(blob);if(!alive)return;
+      const asset={id:crypto.randomUUID(),kind:'contract',blob,fingerprint:await mediaFingerprint(blob),createdAt:new Date().toISOString()};
+      await persistThenCommit(asset,draft=>{draft.subscription.contractId=asset.id;draft.subscription.contractFingerprint=asset.fingerprint;});
+      notify('私有契约已就绪');
+      return true;
+    }catch(error){if(alive)notify(error.message);return false;}finally{busy=false;}
+  }
+  async function unlock(password){
+    if(busy)return;busy=true;
+    try{
+      if(embeddedContract?.url!=='./assets/contract.enc.json')throw Error('内置契约尚未接入');
+      const response=await fetch(embeddedContract.url,{signal:AbortSignal.timeout(15000)});
+      if(!response.ok||Number(response.headers.get('content-length'))>11_000_000)throw Error('内置契约暂时无法读取');
+      const text=await response.text();if(text.length>11_000_000)throw Error('内置契约格式无效');
+      const blob=await unsealContract(JSON.parse(text),password);if(!alive)return;
+      await checkContract(blob);const asset={id:crypto.randomUUID(),kind:'contract',blob,fingerprint:await mediaFingerprint(blob),createdAt:new Date().toISOString()};
+      await persistThenCommit(asset,draft=>{draft.subscription.contractId=asset.id;draft.subscription.contractFingerprint=asset.fingerprint;});
+      notify('契约已解锁');queueMicrotask(()=>container.querySelector('[data-sub="view-contract"]')?.click());
+    }catch(error){notify(error.message);}finally{busy=false;}
+  }
   async function change(event){
     if(event.target.id==='signature-consent'){enableSigning();return;}
     if(event.target.dataset.restoreId){
@@ -86,6 +123,7 @@ export function mountSubscription(container,state,{commit,notify}){
     const form=event.target;if(!form.dataset.subForm)return;event.preventDefault();event.stopPropagation();if(busy)return;
     const data=new FormData(form);const value=name=>String(data.get(name)||'');
     try{
+      if(form.dataset.subForm==='unlock'){const password=value('password');form.reset();unlock(password);return;}
       if(form.dataset.subForm==='plan'){commit(draft=>configureSubscription(draft.subscription,{amount:value('amount'),payee:value('payee')}));notify('月度方案已保存；未发起付款');}
       if(form.dataset.subForm==='payment'){
         if(!data.has('paid'))throw Error('请先在支付宝付款，再勾选本人付款确认');
@@ -96,9 +134,18 @@ export function mountSubscription(container,state,{commit,notify}){
   async function click(event){
     const button=event.target.closest('[data-sub]');if(!button||busy)return;const action=button.dataset.sub;event.stopPropagation();
     try{
+      if(action==='manage'){management.showModal();return;}
+      if(action==='close-management'){management.close();return;}
+      if(action==='close-payment'){paymentDialog.close();return;}
+      if(action==='close-unlock'){unlockDialog.querySelector('form').reset();unlockDialog.close();return;}
+      if(action==='confirm-payment'){if(!subscription.contractId)throw Error('契约尚未就绪');paymentDialog.showModal();return;}
+      if(action==='pay'){
+        const target=verifiedPaymentLink(paymentLink);if(!target)throw Error('收款码尚未接入');
+        location.assign(target);return;
+      }
       if(action==='close-contract'){viewer.close();return;}
       if(action==='view-contract'){
-        if(!subscription.contractId){root.querySelector('.subscription-original').open=true;root.querySelector('#subscription-contract-input').focus();throw Error('这台设备还未保存契约原图，请先导入你的原件');}
+        if(!subscription.contractId){if(getPrivateConfig()?.contractAvailable){if(await importPrivateContract())queueMicrotask(()=>container.querySelector('[data-sub="view-contract"]')?.click());return;}if(embeddedContract){unlockDialog.showModal();return;}throw Error('请使用已接入契约的 NAS 私有版；原图没有公开发布');}
         busy=true;
         let asset;
         try{asset=await readVerified(subscription.contractId,'contract',subscription.contractFingerprint);}catch(error){if(alive){root.querySelector('.subscription-original').open=true;root.querySelector('.subscription-original').scrollIntoView({block:'start'});}throw error;}
@@ -123,6 +170,6 @@ export function mountSubscription(container,state,{commit,notify}){
       }
     }catch(error){notify(error.message);}finally{busy=false;if(alive)enableSigning();}
   }
-  root.addEventListener('change',change);root.addEventListener('submit',submit);root.addEventListener('click',click);paintContract();paintSignatures();
-  return ()=>{alive=false;pad?.dispose();if(viewer.open)viewer.close();clearViewer();viewer.removeEventListener('close',clearViewer);for(const url of urls)URL.revokeObjectURL(url);root.removeEventListener('change',change);root.removeEventListener('submit',submit);root.removeEventListener('click',click);};
+  root.addEventListener('change',change);root.addEventListener('submit',submit);root.addEventListener('click',click);paintContract();paintSignatures();importPrivateContract();
+  return ()=>{alive=false;pad?.dispose();unlockDialog.querySelector('form').reset();for(const dialog of [viewer,management,paymentDialog,unlockDialog])if(dialog.open)dialog.close();clearViewer();viewer.removeEventListener('close',clearViewer);for(const url of urls)URL.revokeObjectURL(url);root.removeEventListener('change',change);root.removeEventListener('submit',submit);root.removeEventListener('click',click);};
 }
