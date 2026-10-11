@@ -17,6 +17,7 @@ import {createLanBackup} from './lanbackup.js';
 import {createUpdater} from './updater.js';
 import {APP_VERSION,releaseLogHtml} from './version.js';
 import {certificateGuideHtml} from './certificate.js';
+import {houseRulesHtml} from './rules.js';
 const staticHosting=isStaticHosting();
 const pushClient=createPushClient({staticHosting});
 const content = document.querySelector('#content');
@@ -70,7 +71,7 @@ function reminderPanel() {
 async function paintPushStatus(){
   await pushClient.refresh();const element=content.querySelector('#push-status');if(!element)return;
   const configured=!!pushClient.configuration?.pushConfigured;const supported=pushClient.supported();
-  const installation=content.querySelector('#offline')?.closest('section');if(installation)installation.querySelector('p:last-child').textContent=configured?'主屏幕名称“日课”；在下方开启自建后台提醒，仍需手机接收实测。':'主屏幕名称“日课”；后台提醒须另接 NAS/Windows 持续运行的发送服务。';
+  const installation=content.querySelector('#offline')?.closest('section');if(installation)installation.querySelector('p:last-child').textContent=configured?'主屏幕名称“曾家家奴”；在下方开启自建后台提醒，仍需手机接收实测。':'主屏幕名称“曾家家奴”；后台提醒须另接 NAS/Windows 持续运行的发送服务。';
   if(pushClient.configuration?.private){
     content.querySelector('section p').textContent='文字与新签名仍保存在浏览器；原契约从需登录的私有服务读取，匿名推送时间表保存在自建服务。无统计追踪。';
     const connection=content.querySelector('form[data-form="nas-connect"]');if(connection){connection.nextElementSibling?.remove();connection.replaceWith(Object.assign(document.createElement('p'),{textContent:'私有版使用登录会话传送图片，无需再次填写 NAS 账号或上传密钥。'}));}
@@ -97,14 +98,15 @@ function render() {
   stopCamera();
   for(const url of photoUrls)URL.revokeObjectURL(url);
   photoUrls=[];
-  document.querySelector('nav').innerHTML = ['今日','任务','积分','档案','订阅','隐私'].map(name=>`<button data-page="${name}" aria-current="${page===name?'page':'false'}">${name==='今日'?'礼仪':name}</button>`).join('');
-  document.querySelector('h1').textContent = hidden ? '日课' : '私人日课';
+  document.querySelector('nav').innerHTML = ['家规','今日','任务','积分','档案','订阅','隐私'].map(name=>`<button data-page="${name}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name}</button>`).join('');
+  document.querySelector('h1').textContent = '曾家家奴';
   if (hidden) { content.innerHTML='<section><h2>内容已隐去</h2><p>轻触继续查看私人日课。</p><button data-action="reveal">继续查看</button><p class="muted">这是界面遮挡，不是密码或数据加密。</p></section>'; return; }
   const today = state.days[dayKey()] || {};
   const paused = state.settings.paused;
   const status = navigator.onLine ? '本地模式' : '离线模式';
   const heading = `<div class="eyebrow">${dayKey()} · ${status}${paused?' · 已暂停':''}</div><h2>${page==='今日'?'每日礼仪':page==='订阅'?'订阅挡灾':page}</h2>`;
   let body = '';
+  if(page==='家规')body=houseRulesHtml();
   if(page==='今日') {
     const completed=RITUAL_KINDS.filter(kind=>today[kind]!==undefined).length;
     const earned=state.ledger.filter(entry=>entry.date===dayKey()).reduce((total,entry)=>total+entry.points,0);
@@ -115,13 +117,13 @@ function render() {
   if(page==='任务') body = `<p class="muted">“已开展”描述事实；“已确认要求”仅由你明确勾选。可能的赏赐不会自动成为任务或嘉奖。</p>${state.tasks.map(task=>`<article><h3>${escape(task.title)}</h3><small>${{active:'已开展',possible:'尚未发生 / 可能事项',archived:'已归档'}[task.status]} · ${task.confirmed?'用户已确认要求':'未确认为要求'}${task.done?' · 已完成':''}</small><p>${escape(task.note)}</p><p>起始：${escape(task.startDate || '未设置')} · 结束：${escape(task.endDate || '未设置')}</p><p>工作命令：${escape(task.command || '未填写')}</p><small>每日强提醒：${task.dailyReminder?'开启（仅应用内）':'关闭'}${!taskInDateRange(task)?' · 当前不在任务日期内':''}</small>${task.status==='active'&&!task.done?`<button data-action="complete" data-id="${escape(task.id)}" ${paused||!taskInDateRange(task)?'disabled':''}>记录完成 · +3</button>`:''}<button data-action="edit" data-id="${escape(task.id)}">编辑</button><button data-action="archive" data-id="${escape(task.id)}">归档</button></article>`).join('')}<section><h3>新增文字任务 / 可能事项</h3><form data-form="task">${input('title','标题')}${area('note','具体内容')}${taskFields()}<label>状态<select name="status"><option value="active">已开展</option><option value="possible">尚未发生 / 可能事项</option></select></label><label class="check"><input name="confirmed" type="checkbox">我明确确认以上文字及工作命令为要求</label><button ${paused?'disabled':''}>保存</button></form></section>`;
   if(page==='积分') body = `<section><small>忠诚积分 · 虚拟计分</small><div class="score">${points(state)}</div><p>请安与复命各 +2，已开展任务完成 +3。警告不自动扣分。</p></section><form data-form="ledger"><label>类型<select name="kind"><option value="reward">虚拟嘉奖</option><option value="warning">虚拟警告</option></select></label>${input('points','分值（-1000 至 1000）','0','number')}${area('text','说明')}<button ${paused?'disabled':''}>记录虚拟反馈</button></form>${list([...state.ledger].reverse().map(entry=>({...entry,text:`${entry.kind==='warning'?'虚拟警告':entry.kind==='reward'?'虚拟嘉奖':'积分'} ${entry.points>=0?'+':''}${entry.points} · ${entry.text}`})))}`;
   if(page==='档案') body = `<form data-form="profile">${input('name','个人称呼',state.profile.name)}${area('notes','档案 / 自定边界',state.profile.notes)}<button>保存档案</button></form><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 NAS 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 NAS。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${list(Object.entries(state.days).sort(([first],[second])=>second.localeCompare(first)).map(([date,entry])=>({date,text:RITUAL_KINDS.map(kind=>`${ritualNames[kind]}：${entry[kind]??'未记录'}${entry[kind]!==undefined?`\n完成时间：${ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'}`:''}`).join('\n\n')+(entry.legacyEvening!==undefined?`\n\n晚间复命（旧记录）：${entry.legacyEvening}`:'')})))}`;
-  if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“日课”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
+  if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“曾家家奴”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
   if(shoeTaskId&&page==='任务'){
     unmountShoes=mountShoes(content,shoeTaskId,{getState:()=>state,commit:change=>commit(change,false),notify,getToken:()=>nasToken,staticHosting,initialRecordId:shoeRecordId,onSelect:id=>{shoeRecordId=id;history.replaceState(null,'',`${location.pathname}${location.search}#shoes/${encodeURIComponent(shoeTaskId)}/${id}`);},onBack:()=>{shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search);render();}});return;
   }
   if(reportOpen && page==='今日'){renderReport();return;}
   if(ritualKind && page==='今日') {renderRitual();return;}
-  content.innerHTML = heading + (page==='任务'?reminderPanel():'') + body;
+  content.innerHTML = (page==='家规'?'':heading) + (page==='任务'?reminderPanel():'') + body;
   if(page==='任务')for(const task of state.tasks.filter(task=>task.id==='shoe'||task.title.includes('洗鞋'))){
     const edit=[...content.querySelectorAll('[data-action="edit"]')].find(button=>button.dataset.id===task.id);if(edit){const button=document.createElement('button');button.dataset.action='open-shoes';button.dataset.id=task.id;button.textContent='洗鞋照片 · 前后对照';edit.before(button);}
   }
@@ -366,6 +368,7 @@ function readRitualRoute() {
   shoeTaskId=null;shoeRecordId=null;
   const shoes=location.hash.match(/^#shoes\/([^/]+)(?:\/([a-f0-9-]{36}))?$/);
   if(shoes){try{shoeTaskId=decodeURIComponent(shoes[1]);shoeRecordId=shoes[2]||null;page='任务';ritualKind=null;reportOpen=false;return;}catch{shoeTaskId=null;}}
+  if(location.hash==='#rules'){page='家规';ritualKind=null;reportOpen=false;return;}
   if(location.hash==='#subscription'){page='订阅';ritualKind=null;reportOpen=false;return;}
   const kind=location.hash.match(/^#ritual\/(morning|noon|evening|gratitude)$/)?.[1];
   ritualKind=kind || null;
@@ -422,7 +425,7 @@ function download(text,name) {
 document.addEventListener('click',async event=>{
   const button=event.target.closest('button'); if(!button) return;
   try {
-    if(button.dataset.page) {page=button.dataset.page;ritualKind=null;reportOpen=false;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':''));render();return;}
+    if(button.dataset.page) {page=button.dataset.page;ritualKind=null;reportOpen=false;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':page==='家规'?'#rules':''));render();window.scrollTo(0,0);return;}
     const action=button.dataset.action;
     if(action==='release-log'){document.querySelector('#release-log').showModal();return;}
     if(action==='close-release-log'){document.querySelector('#release-log').close();return;}
