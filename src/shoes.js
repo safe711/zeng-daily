@@ -1,22 +1,13 @@
 import {photoIds} from './tasks.js';
 import {validDate,validMediaId} from './model.js';
 import {mediaGeneration,photoFingerprint,saveShoePhoto,getShoeReport,listShoePhotos,listShoeReports,saveShoeReport} from './photos.js';
-export const SHOE_ALBUM='洗鞋记录';
+import {SHOE_ALBUM,shoeDirectory,shoePhotoPath,shoeReportPath} from './taskfiles.js';
+export {SHOE_ALBUM,shoeDirectory,shoePhotoPath,shoeReportPath};
 const queues=new Map();
 function enqueue(key,action){
   const previous=queues.get(key)||Promise.resolve();const pending=previous.catch(()=>{}).then(action);queues.set(key,pending);
   return pending.finally(()=>{if(queues.get(key)===pending)queues.delete(key);});
 }
-export function shoeDirectory(date,recordId){
-  if(!validDate(date)||!validMediaId(recordId))throw Error('洗鞋日期或记录编号无效');
-  return `${SHOE_ALBUM}/${date.slice(0,7)}/${date}-${recordId}`;
-}
-export function shoePhotoPath(photo){
-  const directory=shoeDirectory(photo.date,photo.recordId);
-  if(!validMediaId(photo.shoeId)||!validMediaId(photo.id)||!['before','after'].includes(photo.phase))throw Error('洗鞋照片编号或前后类别无效');
-  return `${directory}/${photo.shoeId}-${photo.phase==='before'?'洗之前':'洗之后'}-${photo.id}.jpg`;
-}
-export const shoeReportPath=report=>`${shoeDirectory(report.date,report.recordId)}/${report.date}.png`;
 export const shoeRecordKey=record=>JSON.stringify([record.id,record.taskTitle,record.date,record.note,record.savedAt,record.taskDetails,record.shoes.map(shoe=>[shoe.id,photoIds(shoe,'before'),photoIds(shoe,'after'),shoe.completedAt])]);
 export async function decodeShoeImage(blob){
   const url=URL.createObjectURL(blob);const image=new Image();
@@ -45,7 +36,7 @@ async function syncAsset(asset,token,report,{fetcher=fetch,persist=report?saveSh
   try{
     if(!token)throw Error('NAS 上传尚未连接，图片已保存在本机');
     const fingerprint=await photoFingerprint(asset.blob);if(epoch!==mediaGeneration())return null;
-    const parameters=new URLSearchParams({date:asset.date,record:asset.recordId});
+    const parameters=new URLSearchParams({date:asset.date,record:asset.recordId});if(asset.taskName)parameters.set('name',asset.taskName);
     if(!report){parameters.set('shoe',asset.shoeId);parameters.set('phase',asset.phase);parameters.set('id',asset.id);}
     const response=await fetcher(`./api/nas/shoes/${report?'reports':'photos'}?${parameters}`,{method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':type,'Authorization':`Bearer ${token}`,'X-Shoe-Fingerprint':fingerprint},body:asset.blob,signal:AbortSignal.timeout(90000)});
     const result=await response.json();if(!response.ok||result.uploaded!==true||result.path!==path||result.fingerprint!==fingerprint)throw Error(result.error||'NAS 未确认洗鞋图片内容与目录');
@@ -62,7 +53,7 @@ export function archiveShoeCard(prepared,token,{upload=true,read=getShoeReport,p
     if(epoch!==mediaGeneration())return null;
     const fingerprint=await photoFingerprint(prepared.file);const sourceKey=shoeRecordKey(record);const existing=await read(record.id);
     if(epoch!==mediaGeneration())return null;
-    const report=existing?.fingerprint===fingerprint&&existing.sourceKey===sourceKey?existing:{recordId:record.id,date:record.date,sourceKey,blob:prepared.file,fingerprint,status:'pending',remotePath:'',error:''};
+    const report=existing?.fingerprint===fingerprint&&existing.sourceKey===sourceKey?existing:{recordId:record.id,date:record.date,taskName:record.taskTitle,sourceKey,blob:prepared.file,fingerprint,status:'pending',remotePath:'',error:''};
     if(report!==existing)await persist(report);
     if(epoch!==mediaGeneration())return null;
     return upload?syncAsset(report,token,true,{persist,fetcher}):report;
@@ -73,14 +64,14 @@ export async function syncPendingShoeMedia(token,{records=()=>[],photos=listShoe
   const references=()=>new Set(records().flatMap(record=>record.shoes.flatMap(shoe=>[...photoIds(shoe,'before'),...photoIds(shoe,'after')]).filter(Boolean)));
   for(const photo of await photos()){
     if(epoch!==mediaGeneration())return totals;if(photo.status==='uploaded'||!references().has(photo.id))continue;
-    try{if(await syncShoePhoto(photo,token,{persist:photoPersist,fetcher}))totals.photos++;}catch{totals.failed++;}
+    try{if(await syncShoePhoto({...photo,taskName:photo.taskName||records().find(r=>r.id===photo.recordId)?.taskTitle},token,{persist:photoPersist,fetcher}))totals.photos++;}catch{totals.failed++;}
   }
   for(const report of await reports()){
     if(epoch!==mediaGeneration())return totals;if(report.status==='uploaded')continue;
     try{const uploaded=await enqueue(`report:${report.recordId}`,async()=>{
       const latest=await read(report.recordId);const record=records().find(item=>item.id===report.recordId);
       if(epoch!==mediaGeneration()||!latest||latest.status==='uploaded'||!record?.savedAt||latest.sourceKey!==shoeRecordKey(record))return null;
-      return syncAsset(latest,token,true,{persist:reportPersist,fetcher});
+      return syncAsset({...latest,taskName:latest.taskName||record.taskTitle},token,true,{persist:reportPersist,fetcher});
     });if(uploaded)totals.reports++;}catch{totals.failed++;}
   }
   return totals;
