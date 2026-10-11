@@ -14,6 +14,7 @@ import {getShoeReport} from './photos.js';
 import {syncPendingShoeMedia,shoeRecordKey} from './shoes.js';
 import {createNotifier} from './notifications.js';
 import {createLanBackup} from './lanbackup.js';
+import {createUpdater} from './updater.js';
 const staticHosting=isStaticHosting();
 const pushClient=createPushClient({staticHosting});
 const content = document.querySelector('#content');
@@ -21,6 +22,7 @@ const seal=document.querySelector('.seal');
 seal.textContent='';seal.setAttribute('role','img');seal.setAttribute('aria-label','行书曾字');
 const message = document.querySelector('#message');
 const notify=createNotifier(message);
+const checkForUpdate=createUpdater({notify});
 let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
@@ -475,7 +477,7 @@ document.addEventListener('click',async event=>{
     if(action==='export') download(JSON.stringify(state,null,2),`daily-${dayKey()}.json`);
     if(action==='raw') download(localStorage.getItem('zeng-daily-v1')??'null','daily-raw.json');
     if(action==='persist') notify(navigator.storage?.persist ? (await navigator.storage.persist()?'已允许保留；仍请导出备份':'浏览器未允许保留；请定期导出备份'):'此浏览器不支持请求保留存储');
-    if(action==='update') {const registration=await navigator.serviceWorker.getRegistration();if(!registration)throw Error('离线服务尚未安装');await registration.update();notify('已检查；如有新版，请关闭所有日课窗口后重新打开。');}
+    if(action==='update') await checkForUpdate();
     if(action==='clear' && prompt('输入 清空 确认删除全部本机记录、礼仪及洗鞋照片、洗鞋截图、汇总截图、订阅协议和本人签名。请先分别备份文字和图片。NAS 上的文件不会删除。')==='清空') {let pushStopped=true;try{await pushClient.stop();}catch{pushStopped=false;}reportGeneration++;resetReportQueue();lanBackup.disconnect();await clearMedia();writeState(initialState());state=initialState();currentPhoto=null;photoKey='';preparedShare=null;preparedKey='';storageFailed=false;render();notify(pushStopped?'本机数据已清空；NAS 文件保留':'本机数据已清空；后台停用未同步，请恢复连接后停止设备提醒');}
   } catch(error) {notify(error.message);}
 });

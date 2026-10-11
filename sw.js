@@ -1,5 +1,5 @@
-const CACHE = 'daily-shell-v0.1.2-test.8-refresh3';
-const SHELL = ['./','./index.html','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png','./src/style.css','./src/app.js','./src/model.js','./src/storage.js','./src/hold.js','./src/ritual.js','./src/photos.js','./src/share.js','./src/reports.js','./src/subscription.js','./src/subscriptionview.js','./src/signature.js','./src/hosting.js','./src/integrations.js','./src/contractcrypto.js','./src/pushclient.js','./src/shoes.js','./src/shoecard.js','./src/shoeview.js','./src/notifications.js','./src/lanbackup.js'];
+const CACHE = 'daily-shell-v0.1.2-test.8-refresh4';
+const SHELL = ['./','./index.html','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png','./src/style.css','./src/app.js','./src/model.js','./src/storage.js','./src/hold.js','./src/ritual.js','./src/photos.js','./src/share.js','./src/reports.js','./src/subscription.js','./src/subscriptionview.js','./src/signature.js','./src/hosting.js','./src/integrations.js','./src/contractcrypto.js','./src/pushclient.js','./src/shoes.js','./src/shoecard.js','./src/shoeview.js','./src/notifications.js','./src/lanbackup.js','./src/updater.js'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL.map(path=>new Request(path,{cache:'reload'}))))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('daily-shell-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -25,4 +25,9 @@ self.addEventListener('notificationclick',event=>{
     for(const client of windows)if(client.url.startsWith(self.registration.scope)){await client.navigate(target);await client.focus();return;}
     await self.clients.openWindow(target);
   })());
+});
+
+self.addEventListener('message',event=>{
+  if(event.data?.type==='GET_BUILD')event.ports[0]?.postMessage({build:CACHE});
+  if(event.data?.type==='SKIP_WAITING')event.waitUntil(self.skipWaiting());
 });
