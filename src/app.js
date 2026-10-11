@@ -132,7 +132,7 @@ function render() {
     renderShoeArchive();
   }
   if(staticHosting&&page==='隐私')content.insertAdjacentHTML('beforeend',lanBackup.settingsHtml());
-  if(page==='订阅')unmountSubscription=mountSubscription(content,state,{commit,notify,getPrivateConfig:()=>staticHosting?{contractAvailable:lanBackup.configured}:pushClient.configuration,loadPrivateContract:staticHosting?()=>lanBackup.readContract():null});
+  if(page==='订阅')unmountSubscription=mountSubscription(content,state,{commit,notify,getPrivateConfig:()=>staticHosting?{contractAvailable:lanBackup.enabled}:pushClient.configuration,loadPrivateContract:staticHosting?()=>lanBackup.readContract():null});
   if(page==='今日'&&!ritualKind&&!reportOpen){
     const subscription=subscriptionStatus(state.subscription,dayKey());
     if(['due-soon','expired','pending-signature'].includes(subscription.code))content.insertAdjacentHTML('beforeend',`<section class="subscription-reminder"><h3>订阅 · ${escape(subscription.label)}</h3><p>${subscription.renewalDate?`续费日期 ${escape(subscription.renewalDate)} · `:''}仅本人自记，未核实到账。无自动扣款。</p><button data-page="订阅">查看订阅与签字</button></section>`);
@@ -437,7 +437,7 @@ document.addEventListener('click',async event=>{
     if(action==='enable-push'){await pushClient.enable(state.settings);await paintPushStatus();notify('后台已登记，请关闭应用实测；不代表手机已收到');return;}
     if(action==='test-push'){await pushClient.test();notify('推送通道已接受测试，请在手机锁屏核对；不代表已显示');return;}
     if(action==='stop-push'){await pushClient.stop();await paintPushStatus();notify('已停止此设备的后台提醒');return;}
-    if(staticHosting&&['sync-photo','sync-photos','sync-media','lan-retry'].includes(action)){await lanBackup.run({manual:true});return;}
+    if(staticHosting&&['sync-photo','sync-photos','sync-media','lan-retry'].includes(action)){await lanBackup.retry();return;}
     if(action==='lan-disconnect'){lanBackup.disconnect();render();notify('已停止回家自动备份，本机与 NAS 照片保留');return;}
     if(action==='open-report'){ritualKind=null;reportOpen=true;if(location.hash)history.replaceState(null,'',location.pathname+location.search);render();return;}
     if(action==='close-report'){reportOpen=false;render();return;}
@@ -487,7 +487,6 @@ document.addEventListener('click',async event=>{
 });
 document.addEventListener('submit',event=>{
   event.preventDefault();const form=event.target;const data=new FormData(form);const value=name=>String(data.get(name)??'');
-  if(form.dataset.form==='lan-backup'){try{lanBackup.save(value('url'),value('key'));form.reset();render();notify('回家自动备份已开启');lanBackup.run({manual:true});}catch(error){notify(error.message);}return;}
   if(form.dataset.form==='nas-connect'){
     if(staticHosting){notify('网页版不收集 NAS 连接密钥');return;}
     nasToken=value('token');
