@@ -1,4 +1,4 @@
-export const CLIENT_BUILD='daily-shell-v0.1.2-test.8-refresh5';
+export const CLIENT_BUILD='daily-shell-v0.1.2-test.8-refresh6';
 
 export function workerBuild(worker){
   if(!worker)return Promise.resolve(null);
