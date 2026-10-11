@@ -65,17 +65,26 @@ export function validateState(state) {
   for (const task of state.tasks) {
     if (!task || !string(task.id) || ids.has(task.id) || !string(task.title) || !task.title.trim() || !string(task.note) || !['active','possible','archived'].includes(task.status) || typeof task.confirmed !== 'boolean' || typeof task.done !== 'boolean') throw Error('任务数据无效');
     validateTaskSchedule(task);
+    if(task.type!==undefined&&!['shoe','laundry','homework','custom'].includes(task.type))throw Error('任务类型无效');
+    for(const field of ['startedAt','completedAt'])if(task[field]!==undefined&&task[field]!==''&&!Number.isFinite(Date.parse(task[field])))throw Error('任务实际时间无效');
+    for(const field of ['plannedStart','plannedEnd'])if(task[field]!==undefined&&task[field]!==''&&!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(task[field]))throw Error('任务计划时间无效');
+    if(task.plannedStart&&task.plannedEnd&&task.plannedEnd<task.plannedStart)throw Error('结束时间不能早于开始时间');
+    if(task.photoIds!==undefined&&(!Array.isArray(task.photoIds)||task.photoIds.length>32||new Set(task.photoIds).size!==task.photoIds.length||task.photoIds.some(id=>!validMediaId(id))))throw Error('任务照片关联无效');
+
     ids.add(task.id);
   }
   if(!Array.isArray(state.shoeRecords)||state.shoeRecords.length>2000)throw Error('洗鞋记录列表无效');
   const shoeRecordIds=new Set();const shoeIds=new Set();const shoePhotoIds=new Set();
   const timestamp=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
   for(const record of state.shoeRecords){
-    if(!record||!Object.keys(record).every(key=>['id','taskId','taskTitle','date','note','createdAt','updatedAt','savedAt','shoes'].includes(key))||!validMediaId(record.id)||shoeRecordIds.has(record.id)||!ids.has(record.taskId)||!string(record.taskTitle)||!record.taskTitle.trim()||!validDate(record.date)||!string(record.note)||record.note.length>2000||!timestamp(record.createdAt)||!timestamp(record.updatedAt)||record.updatedAt<record.createdAt||!(record.savedAt===''||timestamp(record.savedAt)&&record.savedAt>=record.createdAt&&record.savedAt<=record.updatedAt)||!Array.isArray(record.shoes)||!record.shoes.length||record.shoes.length>MAX_SHOES)throw Error('洗鞋记录结构无效');
+    if(!record||!Object.keys(record).every(key=>['id','taskId','taskTitle','date','note','createdAt','updatedAt','savedAt','shoes','taskDetails'].includes(key))||!validMediaId(record.id)||shoeRecordIds.has(record.id)||!ids.has(record.taskId)||!string(record.taskTitle)||!record.taskTitle.trim()||!validDate(record.date)||!string(record.note)||record.note.length>2000||!timestamp(record.createdAt)||!timestamp(record.updatedAt)||record.updatedAt<record.createdAt||!(record.savedAt===''||timestamp(record.savedAt)&&record.savedAt>=record.createdAt&&record.savedAt<=record.updatedAt)||!Array.isArray(record.shoes)||!record.shoes.length||record.shoes.length>MAX_SHOES)throw Error('洗鞋记录结构无效');
     shoeRecordIds.add(record.id);
     for(const shoe of record.shoes){
-      if(!shoe||!Object.keys(shoe).every(key=>['id','beforePhotoId','afterPhotoId'].includes(key))||!validMediaId(shoe.id)||shoeIds.has(shoe.id))throw Error('鞋子编号无效或重复');
+      if(!shoe||!Object.keys(shoe).every(key=>['id','beforePhotoId','afterPhotoId','beforePhotoIds','afterPhotoIds','completedAt'].includes(key))||!validMediaId(shoe.id)||shoeIds.has(shoe.id))throw Error('鞋子编号无效或重复');
       shoeIds.add(shoe.id);
+      if(shoe.completedAt!==undefined&&shoe.completedAt!==''&&!timestamp(shoe.completedAt))throw Error('鞋子完成时间无效');
+      for(const phase of ['before','after'])if(shoe[phase+'PhotoIds']!==undefined){const list=shoe[phase+'PhotoIds'];if(!Array.isArray(list)||list.length>8||new Set(list).size!==list.length||list.some(id=>!validMediaId(id))||list.length&&shoe[phase+'PhotoId']!==list[0])throw Error('鞋子多张照片关联无效');for(const id of list.slice(1)){if(shoePhotoIds.has(id))throw Error('照片重复关联');shoePhotoIds.add(id);}}
+
       for(const field of ['beforePhotoId','afterPhotoId']){
         const id=shoe[field];if(id!==null&&(!validMediaId(id)||shoePhotoIds.has(id)))throw Error('洗鞋照片关联无效或重复');
         if(id!==null)shoePhotoIds.add(id);if(record.savedAt&&id===null)throw Error('已保存洗鞋记录缺少前后照片');
@@ -106,6 +115,7 @@ export function completeTask(state,id,date=dayKey()) {
   if (!task || task.status !== 'active' || task.done) throw Error('任务不可完成或已完成');
   if (!taskInDateRange(task,date)) throw Error('当前日期不在任务起止日期内，请编辑日期或记录到侍奉记录');
   task.done = true;
+  task.completedAt=new Date().toISOString();
   state.records.push({date,text:`完成任务：${task.title}`});
   state.ledger.push({date,kind:'task',points:3,text:task.title});
 }

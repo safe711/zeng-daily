@@ -43,6 +43,7 @@ export const saveReport=report=>operation('readwrite',store=>store.put(report),'
 export const getReport=date=>operation('readonly',store=>store.get(date),'reports');
 export const listReports=()=>operation('readonly',store=>store.getAll(),'reports');
 export const saveSubscriptionMedia=asset=>operation('readwrite',store=>store.put(asset),'subscriptionMedia');
+export const listSubscriptionMedia=()=>operation('readonly',store=>store.getAll(),'subscriptionMedia');
 export const getSubscriptionMedia=id=>operation('readonly',store=>store.get(id),'subscriptionMedia');
 export const deleteSubscriptionMedia=id=>operation('readwrite',store=>store.delete(id),'subscriptionMedia');
 export const saveShoePhoto=photo=>operation('readwrite',store=>store.put(photo),'shoePhotos',photoGeneration);

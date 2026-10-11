@@ -17,6 +17,9 @@ import {createLanBackup} from './lanbackup.js';
 import {createUpdater} from './updater.js';
 import {APP_VERSION,releaseLogHtml} from './version.js';
 import {certificateGuideHtml} from './certificate.js';
+import {createTask,tasksHtml} from './tasks.js';
+import {mountTask} from './taskview.js';
+import {syncTaskMedia} from './taskmedia.js';
 import {houseRulesHtml} from './rules.js';
 const staticHosting=isStaticHosting();
 const pushClient=createPushClient({staticHosting});
@@ -29,13 +32,15 @@ const checkForUpdate=createUpdater({notify});
 let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
-const lanBackup=createLanBackup({records:()=>state.shoeRecords,notify});
+const lanBackup=createLanBackup({records:()=>state.shoeRecords,tasks:()=>state.tasks,notify});
 let page = '今日';
 let hidden = false;
 let ritualKind = null;
 let cancelHold = ()=>{};
 let unmountSubscription=()=>{};
 let unmountShoes=()=>{};
+let unmountTask=()=>{};
+let taskDetailId=null;
 let shoeTaskId=null;
 let shoeRecordId=null;
 let currentPhoto=null;
@@ -94,6 +99,7 @@ function commit(change,rerender=true) {
 function render() {
   unmountSubscription();unmountSubscription=()=>{};
   unmountShoes();unmountShoes=()=>{};
+  unmountTask();unmountTask=()=>{};
   cancelHold();
   stopCamera();
   for(const url of photoUrls)URL.revokeObjectURL(url);
@@ -114,19 +120,18 @@ function render() {
     for(const kind of RITUAL_KINDS) body += `<button class="ritual-card ${today[kind]!==undefined?'is-complete':''}" data-action="open-ritual" data-kind="${kind}"><span class="ritual-dot" aria-hidden="true">${today[kind]!==undefined?'✓':'○'}</span><span class="ritual-card-title"><strong>${ritualNames[kind]}</strong><small>${today[kind]!==undefined?`完成于 ${escape(ritualEvidence(today,kind).completedTime||'时间未记录')}`:escape(state.settings[kind]||'提醒时间未设置')}</small></span><span class="ritual-card-status">${today[kind]!==undefined?'已完成':paused?'已暂停':'待完成'}</span><span aria-hidden="true">›</span></button>`;
     body += '<p class="muted home-note">礼仪每日记录；洗鞋等手动事项请到“任务”管理。</p><section class="daily-share"><h3>今日礼仪汇总</h3><p>请安文本、打卡缩略图与每段完成时间，整理为一张分享卡。</p><button data-action="open-report">预览礼仪汇总</button><button data-action="share-day" disabled>分享至微信</button><p class="muted">四项礼仪完成后解锁分享。在系统分享菜单选择微信，再确认接收人。</p></section>';
   }
-  if(page==='任务') body = `<p class="muted">“已开展”描述事实；“已确认要求”仅由你明确勾选。可能的赏赐不会自动成为任务或嘉奖。</p>${state.tasks.map(task=>`<article><h3>${escape(task.title)}</h3><small>${{active:'已开展',possible:'尚未发生 / 可能事项',archived:'已归档'}[task.status]} · ${task.confirmed?'用户已确认要求':'未确认为要求'}${task.done?' · 已完成':''}</small><p>${escape(task.note)}</p><p>起始：${escape(task.startDate || '未设置')} · 结束：${escape(task.endDate || '未设置')}</p><p>工作命令：${escape(task.command || '未填写')}</p><small>每日强提醒：${task.dailyReminder?'开启（仅应用内）':'关闭'}${!taskInDateRange(task)?' · 当前不在任务日期内':''}</small>${task.status==='active'&&!task.done?`<button data-action="complete" data-id="${escape(task.id)}" ${paused||!taskInDateRange(task)?'disabled':''}>记录完成 · +3</button>`:''}<button data-action="edit" data-id="${escape(task.id)}">编辑</button><button data-action="archive" data-id="${escape(task.id)}">归档</button></article>`).join('')}<section><h3>新增文字任务 / 可能事项</h3><form data-form="task">${input('title','标题')}${area('note','具体内容')}${taskFields()}<label>状态<select name="status"><option value="active">已开展</option><option value="possible">尚未发生 / 可能事项</option></select></label><label class="check"><input name="confirmed" type="checkbox">我明确确认以上文字及工作命令为要求</label><button ${paused?'disabled':''}>保存</button></form></section>`;
+  if(page==='任务') body=tasksHtml(state).replace('<div class="task-list">',reminderPanel()+'<div class="task-list">');
   if(page==='积分') body = `<section><small>忠诚积分 · 虚拟计分</small><div class="score">${points(state)}</div><p>请安与复命各 +2，已开展任务完成 +3。警告不自动扣分。</p></section><form data-form="ledger"><label>类型<select name="kind"><option value="reward">虚拟嘉奖</option><option value="warning">虚拟警告</option></select></label>${input('points','分值（-1000 至 1000）','0','number')}${area('text','说明')}<button ${paused?'disabled':''}>记录虚拟反馈</button></form>${list([...state.ledger].reverse().map(entry=>({...entry,text:`${entry.kind==='warning'?'虚拟警告':entry.kind==='reward'?'虚拟嘉奖':'积分'} ${entry.points>=0?'+':''}${entry.points} · ${entry.text}`})))}`;
   if(page==='档案') body = `<form data-form="profile">${input('name','个人称呼',state.profile.name)}${area('notes','档案 / 自定边界',state.profile.notes)}<button>保存档案</button></form><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 NAS 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 NAS。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${list(Object.entries(state.days).sort(([first],[second])=>second.localeCompare(first)).map(([date,entry])=>({date,text:RITUAL_KINDS.map(kind=>`${ritualNames[kind]}：${entry[kind]??'未记录'}${entry[kind]!==undefined?`\n完成时间：${ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'}`:''}`).join('\n\n')+(entry.legacyEvening!==undefined?`\n\n晚间复命（旧记录）：${entry.legacyEvening}`:'')})))}`;
   if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“曾家家奴”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
+  const mediaSaved=manual=>staticHosting?(manual?lanBackup.retry():lanBackup.run()):syncTaskMedia(state.tasks,{key:nasToken}).then(()=>retryMedia()).catch(error=>notify('图片保留待补传：'+error.message));
+  if(taskDetailId&&page==='任务'){unmountTask=mountTask(content,taskDetailId,{getState:()=>state,commit:change=>commit(change,false),notify,onBack:()=>{taskDetailId=null;history.replaceState(null,'',location.pathname+location.search);render();},onMediaSaved:mediaSaved});return;}
   if(shoeTaskId&&page==='任务'){
-    unmountShoes=mountShoes(content,shoeTaskId,{getState:()=>state,commit:change=>commit(change,false),notify,getToken:()=>nasToken,staticHosting,initialRecordId:shoeRecordId,onSelect:id=>{shoeRecordId=id;history.replaceState(null,'',`${location.pathname}${location.search}#shoes/${encodeURIComponent(shoeTaskId)}/${id}`);},onBack:()=>{shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search);render();}});return;
+    unmountShoes=mountShoes(content,shoeTaskId,{getState:()=>state,commit:change=>commit(change,false),notify,getToken:()=>nasToken,staticHosting,onMediaSaved:mediaSaved,initialRecordId:shoeRecordId,onSelect:id=>{shoeRecordId=id;history.replaceState(null,'',`${location.pathname}${location.search}#shoes/${encodeURIComponent(shoeTaskId)}/${id}`);},onBack:()=>{shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search);render();}});return;
   }
   if(reportOpen && page==='今日'){renderReport();return;}
   if(ritualKind && page==='今日') {renderRitual();return;}
-  content.innerHTML = (page==='家规'?'':heading) + (page==='任务'?reminderPanel():'') + body;
-  if(page==='任务')for(const task of state.tasks.filter(task=>task.id==='shoe'||task.title.includes('洗鞋'))){
-    const edit=[...content.querySelectorAll('[data-action="edit"]')].find(button=>button.dataset.id===task.id);if(edit){const button=document.createElement('button');button.dataset.action='open-shoes';button.dataset.id=task.id;button.textContent='洗鞋照片 · 前后对照';edit.before(button);}
-  }
+  content.innerHTML = (page==='家规'?'':heading) + body;
   if(page==='档案'){
     content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section><section><h3>洗鞋照片记录</h3><div id="shoe-archive"></div></section>`);
     renderShoeArchive();
@@ -365,7 +370,8 @@ async function renderShoeArchive(){
   }
 }
 function readRitualRoute() {
-  shoeTaskId=null;shoeRecordId=null;
+  taskDetailId=null;shoeTaskId=null;shoeRecordId=null;
+  const taskRoute=location.hash.match(/^#task\/(.+)$/);if(taskRoute){try{taskDetailId=decodeURIComponent(taskRoute[1]);page='任务';ritualKind=null;reportOpen=false;return;}catch{taskDetailId=null;}}
   const shoes=location.hash.match(/^#shoes\/([^/]+)(?:\/([a-f0-9-]{36}))?$/);
   if(shoes){try{shoeTaskId=decodeURIComponent(shoes[1]);shoeRecordId=shoes[2]||null;page='任务';ritualKind=null;reportOpen=false;return;}catch{shoeTaskId=null;}}
   if(location.hash==='#rules'){page='家规';ritualKind=null;reportOpen=false;return;}
@@ -425,7 +431,7 @@ function download(text,name) {
 document.addEventListener('click',async event=>{
   const button=event.target.closest('button'); if(!button) return;
   try {
-    if(button.dataset.page) {page=button.dataset.page;ritualKind=null;reportOpen=false;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':page==='家规'?'#rules':''));render();window.scrollTo(0,0);return;}
+    if(button.dataset.page) {page=button.dataset.page;ritualKind=null;reportOpen=false;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':page==='家规'?'#rules':''));render();window.scrollTo(0,0);return;}
     const action=button.dataset.action;
     if(action==='release-log'){document.querySelector('#release-log').showModal();return;}
     if(action==='close-release-log'){document.querySelector('#release-log').close();return;}
@@ -433,6 +439,9 @@ document.addEventListener('click',async event=>{
     if(action==='close-certificate-guide'){document.querySelector('#certificate-guide').close();return;}
     if(action==='copy-certificate-address'){const field=document.querySelector('#certificate-install-address');try{await navigator.clipboard.writeText(field.value);notify('安装地址已复制，请打开 Safari 粘贴');}catch{field.focus();field.select();notify('请长按地址复制，再打开 Safari 粘贴');}return;}
 
+    if(action==='add-task'){content.querySelector('#add-task-dialog').showModal();return;}
+    if(action==='close-add-task'){content.querySelector('#add-task-dialog').close();return;}
+    if(action==='open-task'){location.hash='task/'+encodeURIComponent(button.dataset.id);return;}
     if(action==='open-shoes'){location.hash=`shoes/${encodeURIComponent(button.dataset.id)}${button.dataset.record?`/${button.dataset.record}`:''}`;return;}
     if(action==='enable-push'){await pushClient.enable(state.settings);await paintPushStatus();notify('后台已登记，请关闭应用实测；不代表手机已收到');return;}
     if(action==='test-push'){await pushClient.test();notify('推送通道已接受测试，请在手机锁屏核对；不代表已显示');return;}
@@ -487,6 +496,7 @@ document.addEventListener('click',async event=>{
 });
 document.addEventListener('submit',event=>{
   event.preventDefault();const form=event.target;const data=new FormData(form);const value=name=>String(data.get(name)??'');
+  if(form.dataset.form==='new-task'){try{let id;const type=value('type');commit(draft=>{id=createTask(draft,{type,title:value('title'),note:value('note').trim(),plannedStart:value('plannedStart'),plannedEnd:value('plannedEnd')});});location.hash=(type==='shoe'?'shoes/':'task/')+id;}catch(error){notify(error.message);}return;}
   if(form.dataset.form==='nas-connect'){
     if(staticHosting){notify('网页版不收集 NAS 连接密钥');return;}
     nasToken=value('token');
@@ -506,6 +516,7 @@ document.addEventListener('submit',event=>{
   });if(form.dataset.form==='settings')pushClient.sync(state.settings).catch(()=>notify('设置已存本机；后台提醒更新未同步，请联网重试'));}catch(error){notify(error.message);}
 });
 document.addEventListener('change',async event=>{
+  if(event.target.matches('[data-form="new-task"] [name="type"]')){const label=event.target.form.querySelector('[data-custom-title]');label.hidden=event.target.value!=='custom';label.querySelector('input').required=!label.hidden;return;}
   if(event.target.id!=='import') return;
   try {const file=event.target.files[0];if(!file)return;if(file.size>5_000_000)throw Error('备份超过 5 MB');const restored=parseBackup(await file.text());if(!confirm('将覆盖当前本机数据。已导出当前备份并确认继续？'))return;writeState(restored);state=restored;storageFailed=false;render();notify('备份已恢复');}catch(error){notify(`恢复失败：${error.message}`);}
 });

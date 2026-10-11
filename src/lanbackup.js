@@ -1,4 +1,6 @@
 import {listPhotos,listReports,listShoePhotos,listShoeReports,syncPhoto} from './photos.js';
+import {listSubscriptionMedia} from './photos.js';
+import {syncTaskMedia} from './taskmedia.js';
 import {syncPendingReports} from './reports.js';
 import {syncPendingShoeMedia} from './shoes.js';
 
@@ -9,7 +11,7 @@ export function validateLanUrl(value){
   if(url.protocol!=='https:'||!privateIp||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('请输入家庭 NAS 的 HTTPS 局域网地址');
   return url.origin;
 }
-export function createLanBackup({records=()=>[],notify=()=>{},storage=globalThis.localStorage,fetcher=globalThis.fetch,online=()=>globalThis.navigator?.onLine!==false,photos=listPhotos,reports=listReports,shoePhotos=listShoePhotos,shoeReports=listShoeReports,sendPhoto=syncPhoto,sendReports=syncPendingReports,sendShoes=syncPendingShoeMedia}={}){
+export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},storage=globalThis.localStorage,fetcher=globalThis.fetch,online=()=>globalThis.navigator?.onLine!==false,photos=listPhotos,reports=listReports,shoePhotos=listShoePhotos,shoeReports=listShoeReports,sendPhoto=syncPhoto,sendReports=syncPendingReports,sendShoes=syncPendingShoeMedia}={}){
   let config=null,busy=false,pairing=null,lastStatus='正在等待家庭 NAS 自动连接';
   let disabled=false;try{disabled=storage.getItem('daily-lan-disabled')==='true';}catch{}
   try{const saved=JSON.parse(storage.getItem('daily-lan-backup'));if(saved?.key&&saved.key.length>=32&&saved.key.length<=256)config={url:validateLanUrl(saved.url),key:saved.key};}catch{}
@@ -45,7 +47,7 @@ export function createLanBackup({records=()=>[],notify=()=>{},storage=globalThis
     try{
       const connection=await connect();
       const pending=(await photos()).filter(p=>p.status!=='uploaded');
-      const other=[...await reports(),...await shoePhotos(),...await shoeReports()].some(p=>p.status!=='uploaded');
+      const other=[...await reports(),...await shoePhotos(),...await shoeReports(),...(tasks().length?await listSubscriptionMedia():[])].some(p=>p.status!=='uploaded'&&(p.role===undefined||p.role==='task-photo'||p.role==='task-report'));
       if(!pending.length&&!other&&!manual)return;
       const probe=await fetcher(connection.url+'/api/nas/status',{credentials:'omit',redirect:'error',headers:{Authorization:'Bearer '+connection.key},signal:AbortSignal.timeout(3000)});
       if(probe.status===401)throw Error('NAS 已连通，但此设备的连接凭证已失效');
@@ -55,7 +57,7 @@ export function createLanBackup({records=()=>[],notify=()=>{},storage=globalThis
       if(!pending.length&&!other){if(manual)notify('NAS 已连接，没有待上传的照片或截图');return;}
       const upload=(path,options={})=>{
         if(config!==connection)throw Error('NAS 连接已变更');
-        if(!/^\.\/api\/nas\/(photos|reports|shoes\/photos|shoes\/reports)\?/.test(path))throw Error('上传路径无效');
+        if(!/^\.\/api\/nas\/(photos|reports|shoes\/photos|shoes\/reports|tasks\/photos|tasks\/reports)\?/.test(path))throw Error('上传路径无效');
         return fetcher(connection.url+path.slice(1),{...options,credentials:'omit',redirect:'error',headers:{...options.headers,Authorization:'Bearer '+connection.key}});
       };
       let uploaded=0,failed=0;
@@ -63,7 +65,8 @@ export function createLanBackup({records=()=>[],notify=()=>{},storage=globalThis
       if(config!==connection)return;
       const summary=await sendReports(connection.key,{fetcher:upload});
       const shoes=await sendShoes(connection.key,{fetcher:upload,records});
-      failed+=summary.failed+shoes.failed;uploaded+=summary.uploaded+shoes.photos+shoes.reports;
+      const taskMedia=tasks().length?await syncTaskMedia(tasks(),{fetcher:upload,key:connection.key}):{uploaded:0,failed:0};
+      failed+=summary.failed+shoes.failed+taskMedia.failed;uploaded+=summary.uploaded+shoes.photos+shoes.reports+taskMedia.uploaded;
       notify(`已备份 ${uploaded} 张照片与截图到 NAS${failed?`，${failed} 张保留在手机待补传`:''}`);
       return {uploaded,failed};
     }catch(error){const text=connectionError(error);paintStatus(text);if(manual)notify(text+'；照片仍保存在手机');}

@@ -1,3 +1,4 @@
+import {photoIds} from './tasks.js';
 import {validDate,validMediaId} from './model.js';
 import {mediaGeneration,photoFingerprint,saveShoePhoto,getShoeReport,listShoePhotos,listShoeReports,saveShoeReport} from './photos.js';
 export const SHOE_ALBUM='洗鞋记录';
@@ -16,7 +17,7 @@ export function shoePhotoPath(photo){
   return `${directory}/${photo.shoeId}-${photo.phase==='before'?'洗之前':'洗之后'}-${photo.id}.jpg`;
 }
 export const shoeReportPath=report=>`${shoeDirectory(report.date,report.recordId)}/${report.date}.png`;
-export const shoeRecordKey=record=>JSON.stringify([record.id,record.taskTitle,record.date,record.note,record.savedAt,record.shoes.map(shoe=>[shoe.id,shoe.beforePhotoId,shoe.afterPhotoId])]);
+export const shoeRecordKey=record=>JSON.stringify([record.id,record.taskTitle,record.date,record.note,record.savedAt,record.taskDetails,record.shoes.map(shoe=>[shoe.id,photoIds(shoe,'before'),photoIds(shoe,'after'),shoe.completedAt])]);
 export async function decodeShoeImage(blob){
   const url=URL.createObjectURL(blob);const image=new Image();
   try{await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('无法读取照片，请改选 JPEG 或 PNG 图片'));image.src=url;});return {image,width:image.naturalWidth,height:image.naturalHeight,close:()=>URL.revokeObjectURL(url)};}
@@ -69,7 +70,7 @@ export function archiveShoeCard(prepared,token,{upload=true,read=getShoeReport,p
 }
 export async function syncPendingShoeMedia(token,{records=()=>[],photos=listShoePhotos,reports=listShoeReports,read=getShoeReport,photoPersist=saveShoePhoto,reportPersist=saveShoeReport,fetcher=fetch}={}){
   const epoch=mediaGeneration();const totals={photos:0,reports:0,failed:0};
-  const references=()=>new Set(records().flatMap(record=>record.shoes.flatMap(shoe=>[shoe.beforePhotoId,shoe.afterPhotoId]).filter(Boolean)));
+  const references=()=>new Set(records().flatMap(record=>record.shoes.flatMap(shoe=>[...photoIds(shoe,'before'),...photoIds(shoe,'after')]).filter(Boolean)));
   for(const photo of await photos()){
     if(epoch!==mediaGeneration())return totals;if(photo.status==='uploaded'||!references().has(photo.id))continue;
     try{if(await syncShoePhoto(photo,token,{persist:photoPersist,fetcher}))totals.photos++;}catch{totals.failed++;}
