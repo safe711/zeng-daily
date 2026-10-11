@@ -15,6 +15,8 @@ import {syncPendingShoeMedia,shoeRecordKey} from './shoes.js';
 import {createNotifier} from './notifications.js';
 import {createLanBackup} from './lanbackup.js';
 import {createUpdater} from './updater.js';
+import {APP_VERSION,releaseLogHtml} from './version.js';
+import {certificateGuideHtml} from './certificate.js';
 const staticHosting=isStaticHosting();
 const pushClient=createPushClient({staticHosting});
 const content = document.querySelector('#content');
@@ -113,7 +115,7 @@ function render() {
   if(page==='任务') body = `<p class="muted">“已开展”描述事实；“已确认要求”仅由你明确勾选。可能的赏赐不会自动成为任务或嘉奖。</p>${state.tasks.map(task=>`<article><h3>${escape(task.title)}</h3><small>${{active:'已开展',possible:'尚未发生 / 可能事项',archived:'已归档'}[task.status]} · ${task.confirmed?'用户已确认要求':'未确认为要求'}${task.done?' · 已完成':''}</small><p>${escape(task.note)}</p><p>起始：${escape(task.startDate || '未设置')} · 结束：${escape(task.endDate || '未设置')}</p><p>工作命令：${escape(task.command || '未填写')}</p><small>每日强提醒：${task.dailyReminder?'开启（仅应用内）':'关闭'}${!taskInDateRange(task)?' · 当前不在任务日期内':''}</small>${task.status==='active'&&!task.done?`<button data-action="complete" data-id="${escape(task.id)}" ${paused||!taskInDateRange(task)?'disabled':''}>记录完成 · +3</button>`:''}<button data-action="edit" data-id="${escape(task.id)}">编辑</button><button data-action="archive" data-id="${escape(task.id)}">归档</button></article>`).join('')}<section><h3>新增文字任务 / 可能事项</h3><form data-form="task">${input('title','标题')}${area('note','具体内容')}${taskFields()}<label>状态<select name="status"><option value="active">已开展</option><option value="possible">尚未发生 / 可能事项</option></select></label><label class="check"><input name="confirmed" type="checkbox">我明确确认以上文字及工作命令为要求</label><button ${paused?'disabled':''}>保存</button></form></section>`;
   if(page==='积分') body = `<section><small>忠诚积分 · 虚拟计分</small><div class="score">${points(state)}</div><p>请安与复命各 +2，已开展任务完成 +3。警告不自动扣分。</p></section><form data-form="ledger"><label>类型<select name="kind"><option value="reward">虚拟嘉奖</option><option value="warning">虚拟警告</option></select></label>${input('points','分值（-1000 至 1000）','0','number')}${area('text','说明')}<button ${paused?'disabled':''}>记录虚拟反馈</button></form>${list([...state.ledger].reverse().map(entry=>({...entry,text:`${entry.kind==='warning'?'虚拟警告':entry.kind==='reward'?'虚拟嘉奖':'积分'} ${entry.points>=0?'+':''}${entry.points} · ${entry.text}`})))}`;
   if(page==='档案') body = `<form data-form="profile">${input('name','个人称呼',state.profile.name)}${area('notes','档案 / 自定边界',state.profile.notes)}<button>保存档案</button></form><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 NAS 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 NAS。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${list(Object.entries(state.days).sort(([first],[second])=>second.localeCompare(first)).map(([date,entry])=>({date,text:RITUAL_KINDS.map(kind=>`${ritualNames[kind]}：${entry[kind]??'未记录'}${entry[kind]!==undefined?`\n完成时间：${ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'}`:''}`).join('\n\n')+(entry.legacyEvening!==undefined?`\n\n晚间复命（旧记录）：${entry.legacyEvening}`:'')})))}`;
-  if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><p>主屏幕显示名称为“日课”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
+  if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“日课”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
   if(shoeTaskId&&page==='任务'){
     unmountShoes=mountShoes(content,shoeTaskId,{getState:()=>state,commit:change=>commit(change,false),notify,getToken:()=>nasToken,staticHosting,initialRecordId:shoeRecordId,onSelect:id=>{shoeRecordId=id;history.replaceState(null,'',`${location.pathname}${location.search}#shoes/${encodeURIComponent(shoeTaskId)}/${id}`);},onBack:()=>{shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search);render();}});return;
   }
@@ -135,7 +137,8 @@ function render() {
   }
   if(page==='今日' && RITUAL_KINDS.every(kind=>today[kind]!==undefined))prepareReport().catch(error=>notify(error.message));
   if(page==='隐私') {
-    content.querySelector('#offline').insertAdjacentHTML('beforebegin','<p class="muted">手机测试版 0.1.2-test.8</p>');
+    content.querySelector('#offline').insertAdjacentHTML('beforebegin',`<p class="muted">当前版本 ${APP_VERSION}</p>`);
+    content.insertAdjacentHTML('beforeend',releaseLogHtml()+certificateGuideHtml());
     const form=content.querySelector('form[data-form="settings"]');
     for(const kind of ['morning','evening'])form.querySelector(`[name="${kind}"]`).closest('label').remove();
     form.insertAdjacentHTML('afterbegin',RITUAL_KINDS.map(kind=>`<label>${ritualNames[kind]}提醒时间（可留空）<input name="${kind}" type="time" value="${escape(state.settings[kind])}"></label>`).join(''));
@@ -421,6 +424,12 @@ document.addEventListener('click',async event=>{
   try {
     if(button.dataset.page) {page=button.dataset.page;ritualKind=null;reportOpen=false;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':''));render();return;}
     const action=button.dataset.action;
+    if(action==='release-log'){document.querySelector('#release-log').showModal();return;}
+    if(action==='close-release-log'){document.querySelector('#release-log').close();return;}
+    if(action==='certificate-guide'){document.querySelector('#certificate-guide').showModal();return;}
+    if(action==='close-certificate-guide'){document.querySelector('#certificate-guide').close();return;}
+    if(action==='copy-certificate-address'){const field=document.querySelector('#certificate-install-address');try{await navigator.clipboard.writeText(field.value);notify('安装地址已复制，请打开 Safari 粘贴');}catch{field.focus();field.select();notify('请长按地址复制，再打开 Safari 粘贴');}return;}
+
     if(action==='open-shoes'){location.hash=`shoes/${encodeURIComponent(button.dataset.id)}${button.dataset.record?`/${button.dataset.record}`:''}`;return;}
     if(action==='enable-push'){await pushClient.enable(state.settings);await paintPushStatus();notify('后台已登记，请关闭应用实测；不代表手机已收到');return;}
     if(action==='test-push'){await pushClient.test();notify('推送通道已接受测试，请在手机锁屏核对；不代表已显示');return;}

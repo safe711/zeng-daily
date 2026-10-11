@@ -1,4 +1,5 @@
-export const CLIENT_BUILD='daily-shell-v0.1.2-test.8-refresh8';
+import {CLIENT_BUILD} from './version.js';
+export {CLIENT_BUILD} from './version.js';
 
 export function workerBuild(worker){
   if(!worker)return Promise.resolve(null);
