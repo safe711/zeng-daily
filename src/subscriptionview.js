@@ -145,7 +145,7 @@ export function mountSubscription(container,state,{commit,notify,getPrivateConfi
       }
       if(action==='close-contract'){viewer.close();return;}
       if(action==='view-contract'){
-        if(!subscription.contractId){if(getPrivateConfig()?.contractAvailable){if(await importPrivateContract())queueMicrotask(()=>container.querySelector('[data-sub="view-contract"]')?.click());return;}if(embeddedContract){unlockDialog.showModal();return;}throw Error('请使用已接入契约的 NAS 私有版；原图没有公开发布');}
+        if(!subscription.contractId){if(getPrivateConfig()?.contractAvailable){if(await importPrivateContract())queueMicrotask(()=>container.querySelector('[data-sub="view-contract"]')?.click());return;}if(embeddedContract){unlockDialog.showModal();return;}management.showModal();root.querySelector('.subscription-original').open=true;root.querySelector('.subscription-original').scrollIntoView({block:'start'});notify('尚未导入契约图片，请在“历史协议原件”中选择图片；NAS 上的契约需从 NAS 应用入口查看');return;}
         busy=true;
         let asset;
         try{asset=await readVerified(subscription.contractId,'contract',subscription.contractFingerprint);}catch(error){if(alive){root.querySelector('.subscription-original').open=true;root.querySelector('.subscription-original').scrollIntoView({block:'start'});}throw error;}
