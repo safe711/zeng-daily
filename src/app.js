@@ -1,3 +1,4 @@
+import {mountIdentity,identityKeepsView} from './identity.js';
 import {dayKey,initialState,parseBackup,points,daily,completeTask,taskInDateRange,taskReminders,RITUAL_KINDS,RITUAL_NAMES} from './model.js';
 import {readState,writeState} from './storage.js';
 import {createHoldController} from './hold.js';
@@ -43,6 +44,7 @@ let cancelHold = ()=>{};
 let unmountSubscription=()=>{};
 let unmountShoes=()=>{};
 let unmountTask=()=>{};
+let unmountIdentity=()=>{};
 let taskDetailId=null;
 let shoeTaskId=null;
 let shoeRecordId=null;
@@ -103,9 +105,11 @@ function commit(change,rerender=true) {
   if(ritualReport(state).allComplete)prepareReport().catch(error=>notify(`汇总图片待生成：${error.message}`));
 }
 function render() {
+  content.style.visibility='';
   unmountSubscription();unmountSubscription=()=>{};
   unmountShoes();unmountShoes=()=>{};
   unmountTask();unmountTask=()=>{};
+  unmountIdentity();unmountIdentity=()=>{};
   cancelHold();
   stopCamera();
   for(const url of photoUrls)URL.revokeObjectURL(url);
@@ -139,6 +143,7 @@ function render() {
   if(ritualKind && page==='今日') {renderRitual();return;}
   content.innerHTML = (page==='家规'?'':heading) + body;
   if(page==='任务')prepareTaskShares();
+  if(page==='家规')unmountIdentity=mountIdentity(content,{getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
   if(page==='档案'){
     renderProfilePortrait();
     content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section><section><h3>洗鞋照片记录</h3><div id="shoe-archive"></div></section>`);
@@ -545,7 +550,7 @@ document.addEventListener('change',async event=>{
   if(event.target.id!=='import') return;
   try {const file=event.target.files[0];if(!file)return;if(file.size>5_000_000)throw Error('备份超过 5 MB');const restored=parseBackup(await file.text());if(!confirm('将覆盖当前本机数据。已导出当前备份并确认继续？'))return;writeState(restored);state=restored;storageFailed=false;render();notify('备份已恢复');}catch(error){notify(`恢复失败：${error.message}`);}
 });
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.settings.hideOnLeave){hidden=true;render();}else if(!document.hidden)render();});
+document.addEventListener('visibilitychange',()=>{if(page==='家规'&&identityKeepsView()){content.style.visibility=document.hidden&&state.settings.hideOnLeave?'hidden':'';return;}if(document.hidden&&state.settings.hideOnLeave){hidden=true;render();}else if(!document.hidden)render();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelHold();stopCamera();}});
 window.addEventListener('pagehide',stopCamera);
 window.addEventListener('blur',()=>cancelHold());

@@ -48,6 +48,9 @@ export function validateState(state) {
   const string = value => typeof value === 'string' && value.length <= 10000;
   if (!state || state.version !== 4 || !state.days || typeof state.days !== 'object' || Array.isArray(state.days)) throw Error('备份版本或结构无效');
   validateSubscription(state.subscription);
+  if(state.identityContract!==undefined){const r=state.identityContract;
+    if(!r||!validMediaId(r.id)||typeof r.name!=='string'||!r.name.trim()||r.name.length>40||typeof r.pledge!=='string'||r.pledge!=='本人'+r.name+'，自愿遵守曾家家规，作为狗奴才加入曾家。自此以守护曾家人的利益，提高曾家人的生活为责任，服务曾家，永不背叛。'||!Number.isFinite(Date.parse(r.signedAt))||new Date(r.signedAt).toISOString()!==r.signedAt||!['videoHash','signatureHash'].every(k=>typeof r[k]==='string'&&/^[a-f0-9]{64}$/.test(r[k]))||r.nasPath!=='曾家家奴/固定档案/'+r.id)throw Error('身份契约记录无效');
+  }
   for (const [date,entry] of Object.entries(state.days)) {
     if (!validDate(date) || !entry || typeof entry!=='object' || Array.isArray(entry) || ![...RITUAL_KINDS,'legacyEvening'].every(kind => entry[kind] === undefined || string(entry[kind]))) throw Error('日课数据无效');
     if (entry.morningPhotoId!==undefined && (typeof entry.morningPhotoId!=='string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(entry.morningPhotoId))) throw Error('日课照片编号无效');

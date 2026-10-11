@@ -90,6 +90,18 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},stora
     if(response.headers.get('content-type')!=='image/jpeg'||Number(response.headers.get('content-length'))>8000000)throw Error('档案照片格式无效');
     const blob=await response.blob(),bytes=new Uint8Array(await blob.slice(0,3).arrayBuffer());if(!blob.size||blob.size>8000000||bytes[0]!==255||bytes[1]!==216||bytes[2]!==255)throw Error('档案照片内容无效');return blob;
   }
+  async function uploadIdentity(record,video,signature){
+    const connection=await connect();
+    const digest=async blob=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer())),b=>b.toString(16).padStart(2,'0')).join('');
+    const videoHash=await digest(video),signatureHash=await digest(signature);
+    const metadata=new Blob([JSON.stringify({...record,videoHash,signatureHash})],{type:'application/json'});let receipt;
+    for(const [kind,blob,fingerprint] of [['video',video,videoHash],['signature',signature,signatureHash],['record',metadata,await digest(metadata)]]){
+      if(config!==connection)throw Error('NAS 连接已变更');
+      const response=await fetcher(connection.url+'/api/private/identity?id='+record.id+'&kind='+kind,{method:'POST',credentials:'omit',redirect:'error',headers:{Authorization:'Bearer '+connection.key,'Content-Type':blob.type,'X-Identity-Fingerprint':fingerprint},body:blob,signal:AbortSignal.timeout(180000)});
+      receipt=await response.json();if(!response.ok||!receipt.uploaded||(kind!=='record'&&receipt.fingerprint!==fingerprint))throw Error(receipt.error||'NAS 签约资料未保存完整');
+    }
+    return {signedAt:receipt.signedAt,videoHash:receipt.videoHash,signatureHash:receipt.signatureHash,nasPath:receipt.path};
+  }
   function settingsHtml(){return `<section><h3>回家自动备份到 NAS</h3><p>在家里的 Wi-Fi 打开软件，会自动连接 NAS 并补传照片、汇总截图和洗鞋记录。无需填写地址或密钥。外出时保留待上传图片，下次回家补传。</p><p>若浏览器提示访问本地网络，请选择允许。连接凭证只保存在本机。</p><p data-lan-status>${disabled?'自动备份已停止':lastStatus.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}</p><button data-action="lan-retry">立即连接并补传</button><button data-action="lan-disconnect">停止自动备份</button><p><a href="https://192.168.1.20:4180/connection-check" target="_blank" rel="noopener noreferrer">打开连接检测页</a></p><p><button type="button" data-action="certificate-guide">证书安装帮助</button></p></section>`;}
-  return {save,disconnect,connect,retry,run,readContract,readProfilePhoto,settingsHtml,get enabled(){return !disabled;},get configured(){return !!config;}};
+  return {save,disconnect,connect,retry,run,uploadIdentity,readContract,readProfilePhoto,settingsHtml,get enabled(){return !disabled;},get configured(){return !!config;}};
 }
