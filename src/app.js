@@ -129,7 +129,7 @@ function render() {
   }
   if(staticHosting&&page==='隐私')content.insertAdjacentHTML('beforeend',lanBackup.settingsHtml());
   if(staticHosting&&page==='今日')content.querySelector('h2').insertAdjacentHTML('afterend','<section><h3>安装到 iPhone</h3><p>用 Safari 打开本页 → 分享 → 添加到主屏幕，名称“日课”。首次联网打开会自动准备离线缓存，但不会自动安装图标。</p><p class="muted">网页版：记录和图片仅在本机；配置回家自动备份后，可将照片同步至家庭 NAS；不自动扣款。</p></section>');
-  if(page==='订阅')unmountSubscription=mountSubscription(content,state,{commit,notify,getPrivateConfig:()=>pushClient.configuration});
+  if(page==='订阅')unmountSubscription=mountSubscription(content,state,{commit,notify,getPrivateConfig:()=>staticHosting?{contractAvailable:lanBackup.configured}:pushClient.configuration,loadPrivateContract:staticHosting?()=>lanBackup.readContract():null});
   if(page==='今日'&&!ritualKind&&!reportOpen){
     const subscription=subscriptionStatus(state.subscription,dayKey());
     if(['due-soon','expired','pending-signature'].includes(subscription.code))content.insertAdjacentHTML('beforeend',`<section class="subscription-reminder"><h3>订阅 · ${escape(subscription.label)}</h3><p>${subscription.renewalDate?`续费日期 ${escape(subscription.renewalDate)} · `:''}仅本人自记，未核实到账。无自动扣款。</p><button data-page="订阅">查看订阅与签字</button></section>`);

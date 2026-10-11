@@ -13,15 +13,14 @@ export async function checkContract(file){
   const bitmap=await createImageBitmap(file).catch(()=>{throw Error('无法读取协议图片，请换用清晰的 PNG 或 JPEG');});
   const pixels=bitmap.width*bitmap.height;bitmap.close();if(pixels>20_000_000)throw Error('协议图片分辨率过高，请选择较小的原件图片');
 }
-export function mountSubscription(container,state,{commit,notify,getPrivateConfig=()=>null}){
+export function mountSubscription(container,state,{commit,notify,getPrivateConfig=()=>null,loadPrivateContract=null}){
   let alive=true;let busy=false;let pad=null;const urls=[];const subscription=state.subscription;const status=subscriptionStatus(subscription,dayKey());
   const pending=status.pending;const latest=status.latest;
   const renewal=status.renewalDate||'尚未开通';
   const due=status.remainingDays===null?'':status.remainingDays<0?`已到期 ${-status.remainingDays} 天`:status.remainingDays===0?'今日到期':`距续费 ${status.remainingDays} 天`;
   const restoreInput=(id,fingerprint,kind,paymentId='')=>`<label class="muted">恢复对应${kind==='signature'?'本人签名':'原件'}图片备份<input type="file" accept="image/png,image/jpeg" data-restore-id="${id}" data-restore-fingerprint="${fingerprint}" data-restore-kind="${kind}" data-payment-id="${paymentId}"></label>`;
   container.insertAdjacentHTML('beforeend',`<div class="subscription-view">
-    <section class="subscription-introduction"><h3>订阅内容</h3><p>为了让曾家长辈获得更好的生活，本订阅可赋予狗奴才爹娘购买曾仪主子父母及姥姥灾祸的资格。订阅后，订阅人即赋予曾家挡灾狗的身份，为曾仪父母及姥姥遮挡灾祸到自身。</p></section>
-    <section class="subscription-overview" aria-label="订阅状态"><small>SUBSCRIPTION</small><h3>${escape({'not-configured':'待设置','not-started':'未开通','pending-signature':'待签字',active:'已订阅·挡灾中','due-soon':'已订阅·挡灾中',expired:'已到期',scheduled:'下期已确认',stopped:'已暂停'}[status.code])}</h3>${status.active&&!subscription.stopped?'<p class="subscription-identity">成功获得曾家挡灾狗身份。</p><p class="subscription-protection">保护中：曾仪父母、姥姥。</p>':''}<div class="subscription-amount">${subscription.plan.amountCents?`¥ ${formatAmount(subscription.plan.amountCents)} <small>/ 月</small>`:'月费尚未设置'}</div><dl><div><dt>续费时间</dt><dd>${escape(renewal)}</dd></div>${due?`<div><dt>到期提示</dt><dd>${escape(subscription.stopped?'提示已停止':due)}</dd></div>`:''}</dl></section>
+    <section class="subscription-overview" aria-label="订阅状态"><small>SUBSCRIPTION</small><div class="subscription-introduction"><h3>订阅内容</h3><p>为了让曾家长辈获得更好的生活，本订阅可赋予狗奴才爹娘购买曾仪主子父母及姥姥灾祸的资格。订阅后，订阅人即赋予曾家挡灾狗的身份，为曾仪父母及姥姥遮挡灾祸到自身。</p></div><h3>${escape({'not-configured':'待设置','not-started':'未开通','pending-signature':'待签字',active:'已订阅·挡灾中','due-soon':'已订阅·挡灾中',expired:'已到期',scheduled:'下期已确认',stopped:'已暂停'}[status.code])}</h3>${status.active&&!subscription.stopped?'<p class="subscription-identity">成功获得曾家挡灾狗身份。</p><p class="subscription-protection">保护中：曾仪父母、姥姥。</p>':''}<div class="subscription-amount">${subscription.plan.amountCents?`¥ ${formatAmount(subscription.plan.amountCents)} <small>/ 月</small>`:'月费尚未设置'}</div><dl><div><dt>续费时间</dt><dd>${escape(renewal)}</dd></div>${due?`<div><dt>到期提示</dt><dd>${escape(subscription.stopped?'提示已停止':due)}</dd></div>`:''}</dl></section>
     <div class="subscription-primary"><button type="button" class="subscription-pay" data-sub="pay" ${!paymentLink||pending||subscription.stopped?'disabled':''}>付款 · ¥ ${formatAmount(subscription.plan.amountCents)}</button>${!paymentLink?'<small class="muted">收款码待接入</small>':''}${!pending?`<button type="button" class="subscription-confirm-payment" data-sub="confirm-payment" ${!subscription.contractId||subscription.stopped?'disabled':''}>已付款，去签字</button>`:''}</div>
     <div class="subscription-toolbar"><button type="button" data-sub="view-contract">查看契约</button><button type="button" data-sub="manage">管理</button></div>
     <section class="subscription-declaration" aria-label="契约文字"><p class="subscription-declaration-text">“协议已签署，终身生效，直至狗奴父母死亡。”</p></section>
@@ -35,6 +34,7 @@ export function mountSubscription(container,state,{commit,notify,getPrivateConfi
     <section><h3>付款与签字历史</h3><p class="muted">共 ${subscription.payments.length} 笔，显示最近 20 笔。文字备份保留完整元数据及本笔确认文本；原件图片和签名请在这里单独下载。</p>${subscription.payments.slice(-20).reverse().map(payment=>`<article class="subscription-history"><h4>${escape(payment.paidDate)} · ¥ ${formatAmount(payment.amountCents)}</h4><p>${payment.status==='signed'?'已保存本人签字':'待本人签字'} · 自记未核验</p><p>本期起始 ${escape(payment.periodStart)}<br>下次续费 ${escape(payment.periodEnd)}${payment.payee?`<br>收款方备注：${escape(payment.payee)}`:''}${payment.note?`<br>备注：${escape(payment.note)}`:''}</p>${payment.signedAt?`<small>签字时间：${escape(new Date(payment.signedAt).toLocaleString())}</small>`:''}<details><summary>本笔月度确认文本</summary><p>${escape(payment.agreementText)}</p></details><div class="signature-preview" data-signature-preview="${escape(payment.id)}"></div><button type="button" data-sub="download-payment-contract" data-id="${escape(payment.id)}">备份本笔原件</button>${payment.signatureId?`<button type="button" data-sub="download-signature" data-id="${escape(payment.id)}">备份本人签名</button>`:''}</article>`).join('')||'<p class="muted">尚无付款记录。</p>'}</section>
     </dialog>
     <dialog class="subscription-payment-dialog contract-viewer" aria-labelledby="subscription-payment-title"><div class="contract-viewer-header"><h3 id="subscription-payment-title">确认付款</h3><button type="button" data-sub="close-payment">关闭</button></div><div class="subscription-payment-body"></div><p class="muted">由本人确认，未核验到账。</p></dialog>
+    <dialog class="contract-connection contract-viewer"><div class="contract-viewer-header"><h3>连接 NAS 契约原件</h3><button type="button" data-sub="close-connection">关闭</button></div><p>首次查看请连接家里的 Wi-Fi，并在隐私页安装 NAS 证书、填写日课独立访问密钥。读取后会保存原件到本机，之后外出也能查看。</p><button type="button" data-page="隐私">前往 NAS 连接设置</button></dialog>
     <dialog class="contract-unlock contract-viewer" aria-labelledby="contract-unlock-title"><div class="contract-viewer-header"><h3 id="contract-unlock-title">解锁契约</h3><button type="button" data-sub="close-unlock">关闭</button></div><form data-sub-form="unlock"><label>独立查看密码<input name="password" type="password" minlength="12" maxlength="256" autocomplete="off" required></label><button type="submit">解锁并查看</button></form></dialog>
     <dialog class="contract-viewer subscription-contract-viewer" aria-labelledby="contract-viewer-title"><div class="contract-viewer-header"><h3 id="contract-viewer-title">手签契约</h3><button type="button" data-sub="close-contract" autofocus>关闭契约</button></div><div class="contract-viewer-image"></div></dialog>
   </div>`);
@@ -42,6 +42,7 @@ export function mountSubscription(container,state,{commit,notify,getPrivateConfi
   const management=root.querySelector('.subscription-management');
   const paymentDialog=root.querySelector('.subscription-payment-dialog');
   const unlockDialog=root.querySelector('.contract-unlock');
+  const connectionDialog=root.querySelector('.contract-connection');
   paymentDialog.querySelector('.subscription-payment-body').append(root.querySelector('.subscription-payment'));
   if(pending)management.before(root.querySelector('.subscription-signing'));
   const viewer=root.querySelector('.subscription-contract-viewer');let viewerUrl='';
@@ -76,14 +77,17 @@ export function mountSubscription(container,state,{commit,notify,getPrivateConfi
     await saveSubscriptionMedia(asset);
     try{if(!alive)throw Error('页面已离开，未提交记录；请重新打开后操作');commit(change);}catch(error){if(previous&&alive)await saveSubscriptionMedia(previous).catch(()=>{});else await deleteSubscriptionMedia(asset.id).catch(()=>{});throw error;}
   }
-  async function importPrivateContract(){
-    if(busy||subscription.contractId||!getPrivateConfig()?.contractAvailable)return;busy=true;
+  async function importPrivateContract({restore=false}={}){
+    if(busy||subscription.contractId&&!restore||!getPrivateConfig()?.contractAvailable)return;busy=true;
     try{
-      const response=await fetch('./api/private/contract',{credentials:'same-origin',redirect:'error',signal:AbortSignal.timeout(15000)});
-      if(!response.ok||Number(response.headers.get('content-length'))>8_000_000)throw Error('私有契约暂时无法读取');
-      const blob=await response.blob();await checkContract(blob);if(!alive)return;
-      const asset={id:crypto.randomUUID(),kind:'contract',blob,fingerprint:await mediaFingerprint(blob),createdAt:new Date().toISOString()};
-      await persistThenCommit(asset,draft=>{draft.subscription.contractId=asset.id;draft.subscription.contractFingerprint=asset.fingerprint;});
+      let blob;
+      if(loadPrivateContract)blob=await loadPrivateContract();
+      else{const response=await fetch('./api/private/contract',{credentials:'same-origin',redirect:'error',signal:AbortSignal.timeout(15000)});if(!response.ok||Number(response.headers.get('content-length'))>8_000_000)throw Error('私有契约暂时无法读取');blob=await response.blob();}
+      await checkContract(blob);if(!alive)return;
+      const fingerprint=await mediaFingerprint(blob);
+      if(restore&&fingerprint!==subscription.contractFingerprint)throw Error('NAS 原件与这台手机的契约记录不一致，请在管理中恢复对应原件');
+      const asset={id:restore?subscription.contractId:crypto.randomUUID(),kind:'contract',blob,fingerprint,createdAt:new Date().toISOString()};
+      await persistThenCommit(asset,draft=>{if(!restore){draft.subscription.contractId=asset.id;draft.subscription.contractFingerprint=asset.fingerprint;}},{restore});
       notify('私有契约已就绪');
       return true;
     }catch(error){if(alive)notify(error.message);return false;}finally{busy=false;}
@@ -138,6 +142,7 @@ export function mountSubscription(container,state,{commit,notify,getPrivateConfi
       if(action==='manage'){management.showModal();return;}
       if(action==='close-management'){management.close();return;}
       if(action==='close-payment'){paymentDialog.close();return;}
+      if(action==='close-connection'){connectionDialog.close();return;}
       if(action==='close-unlock'){unlockDialog.querySelector('form').reset();unlockDialog.close();return;}
       if(action==='confirm-payment'){if(!subscription.contractId)throw Error('契约尚未就绪');paymentDialog.showModal();return;}
       if(action==='pay'){
@@ -146,10 +151,10 @@ export function mountSubscription(container,state,{commit,notify,getPrivateConfi
       }
       if(action==='close-contract'){viewer.close();return;}
       if(action==='view-contract'){
-        if(!subscription.contractId){if(getPrivateConfig()?.contractAvailable){if(await importPrivateContract())queueMicrotask(()=>container.querySelector('[data-sub="view-contract"]')?.click());return;}if(embeddedContract){unlockDialog.showModal();return;}management.showModal();root.querySelector('.subscription-original').open=true;root.querySelector('.subscription-original').scrollIntoView({block:'start'});notify('尚未导入契约图片，请在“历史协议原件”中选择图片；NAS 上的契约需从 NAS 应用入口查看');return;}
+        if(!subscription.contractId){if(getPrivateConfig()?.contractAvailable){if(await importPrivateContract())queueMicrotask(()=>container.querySelector('[data-sub="view-contract"]')?.click());return;}if(embeddedContract){unlockDialog.showModal();return;}if(loadPrivateContract){connectionDialog.showModal();return;}management.showModal();root.querySelector('.subscription-original').open=true;root.querySelector('.subscription-original').scrollIntoView({block:'start'});notify('尚未导入契约图片，请在“历史协议原件”中选择图片；NAS 上的契约需从 NAS 应用入口查看');return;}
         busy=true;
         let asset;
-        try{asset=await readVerified(subscription.contractId,'contract',subscription.contractFingerprint);}catch(error){if(alive){root.querySelector('.subscription-original').open=true;root.querySelector('.subscription-original').scrollIntoView({block:'start'});}throw error;}
+        try{asset=await readVerified(subscription.contractId,'contract',subscription.contractFingerprint);}catch(error){if(loadPrivateContract||getPrivateConfig()?.contractAvailable){busy=false;if(!getPrivateConfig()?.contractAvailable){connectionDialog.showModal();return;}if(await importPrivateContract({restore:true}))queueMicrotask(()=>container.querySelector('[data-sub="view-contract"]')?.click());return;}if(alive){management.showModal();root.querySelector('.subscription-original').open=true;root.querySelector('.subscription-original').scrollIntoView({block:'start'});}throw error;}
         if(!alive)return;
         clearViewer();viewerUrl=URL.createObjectURL(asset.blob);const image=document.createElement('img');image.src=viewerUrl;image.alt='用户提供的手签契约原图';viewer.querySelector('.contract-viewer-image').append(image);viewer.showModal();return;
       }
@@ -171,6 +176,6 @@ export function mountSubscription(container,state,{commit,notify,getPrivateConfi
       }
     }catch(error){notify(error.message);}finally{busy=false;if(alive)enableSigning();}
   }
-  root.addEventListener('change',change);root.addEventListener('submit',submit);root.addEventListener('click',click);paintContract();paintSignatures();importPrivateContract();
-  return ()=>{alive=false;pad?.dispose();unlockDialog.querySelector('form').reset();for(const dialog of [viewer,management,paymentDialog,unlockDialog])if(dialog.open)dialog.close();clearViewer();viewer.removeEventListener('close',clearViewer);for(const url of urls)URL.revokeObjectURL(url);root.removeEventListener('change',change);root.removeEventListener('submit',submit);root.removeEventListener('click',click);};
+  root.addEventListener('change',change);root.addEventListener('submit',submit);root.addEventListener('click',click);paintContract();paintSignatures();if(!loadPrivateContract)importPrivateContract();
+  return ()=>{alive=false;pad?.dispose();unlockDialog.querySelector('form').reset();for(const dialog of [viewer,management,paymentDialog,unlockDialog,connectionDialog])if(dialog.open)dialog.close();clearViewer();viewer.removeEventListener('close',clearViewer);for(const url of urls)URL.revokeObjectURL(url);root.removeEventListener('change',change);root.removeEventListener('submit',submit);root.removeEventListener('click',click);};
 }
