@@ -1,3 +1,4 @@
+import {captureDaysMatterShare,hasPendingDaysMatter,mountDaysMatter,dayRecordsHtml} from './daysmatter.js';
 import {createAccountClient} from './accounts.js';
 import {mountIdentity,identityKeepsView} from './identity.js';
 import {dayKey,initialState,parseBackup,points,daily,completeTask,taskInDateRange,taskReminders,RITUAL_KINDS,RITUAL_NAMES} from './model.js';
@@ -26,6 +27,7 @@ import {shareTaskFile} from './taskfiles.js';
 import {buildShoeCard} from './shoecard.js';
 import {getShoePhoto} from './photos.js';
 import {houseRulesHtml} from './rules.js';
+captureDaysMatterShare();
 const staticHosting=isStaticHosting();
 const pushClient=createPushClient({staticHosting});
 const content = document.querySelector('#content');
@@ -38,7 +40,7 @@ let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
 const lanBackup=createLanBackup({photos:async()=>(await listPhotos()).filter(usedRitualPhoto),records:()=>state.shoeRecords,tasks:()=>state.tasks,notify,getAccountToken:()=>accountClient?.token});
-const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){page='今日';hidden=false;ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
+const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){page=hasPendingDaysMatter()?'档案':'今日';hidden=false;ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
 let page = '今日';
 let accountWasLoggedIn=false;
 let hidden = false;
@@ -48,6 +50,7 @@ let unmountSubscription=()=>{};
 let unmountShoes=()=>{};
 let unmountTask=()=>{};
 let unmountIdentity=()=>{};
+let unmountDaysMatter=()=>{};
 let taskDetailId=null;
 let shoeTaskId=null;
 let shoeRecordId=null;
@@ -113,6 +116,7 @@ function render() {
   unmountShoes();unmountShoes=()=>{};
   unmountTask();unmountTask=()=>{};
   unmountIdentity();unmountIdentity=()=>{};
+  unmountDaysMatter();unmountDaysMatter=()=>{};
   cancelHold();
   stopCamera();
   for(const url of photoUrls)URL.revokeObjectURL(url);
@@ -146,7 +150,10 @@ function render() {
   }
   if(reportOpen && page==='今日'){renderReport();return;}
   if(ritualKind && page==='今日') {renderRitual();return;}
+  if(page==='今日'&&!ritualKind&&!reportOpen)body=dayRecordsHtml(state,true)+body;
+  if(page==='档案')body=dayRecordsHtml(state)+body;
   content.innerHTML = (page==='家规'?'':heading) + body;
+  if(['今日','档案'].includes(page))unmountDaysMatter=mountDaysMatter(content,{getState:()=>state,commit,notify,getAccount:()=>accountClient.profile});
   if(page==='任务')prepareTaskShares();
   if(page==='家规')unmountIdentity=mountIdentity(content,{getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
   if(page==='档案'){
@@ -398,6 +405,7 @@ async function renderShoeArchive(){
   }
 }
 function readRitualRoute() {
+  if(captureDaysMatterShare()||hasPendingDaysMatter()){page='档案';ritualKind=null;reportOpen=false;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;return;}
   taskDetailId=null;shoeTaskId=null;shoeRecordId=null;
   const taskRoute=location.hash.match(/^#task\/(.+)$/);if(taskRoute){try{taskDetailId=decodeURIComponent(taskRoute[1]);page='任务';ritualKind=null;reportOpen=false;return;}catch{taskDetailId=null;}}
   const shoes=location.hash.match(/^#shoes\/([^/]+)(?:\/([a-f0-9-]{36}))?$/);

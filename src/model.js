@@ -8,7 +8,7 @@ export function dayKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
 export function initialState() {
-  return {version:4,subscription:subscriptionDefaults(),days:{},tasks:[{id:'shoe',title:'洗鞋',status:'active',confirmed:false,note:'已开展；具体要求尚未确认。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false},{id:'socks',title:'袜子赏赐',status:'possible',confirmed:false,note:'可能的赏赐，尚未发生；不作为已获嘉奖。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false}],shoeRecords:[],records:[],ledger:[],profile:{name:'',notes:''},settings:{hideOnLeave:true,paused:false,morning:'08:00',noon:'',evening:'21:00',gratitude:''}};
+  return {version:4,anniversaries:[],subscription:subscriptionDefaults(),days:{},tasks:[{id:'shoe',title:'洗鞋',status:'active',confirmed:false,note:'已开展；具体要求尚未确认。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false},{id:'socks',title:'袜子赏赐',status:'possible',confirmed:false,note:'可能的赏赐，尚未发生；不作为已获嘉奖。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false}],shoeRecords:[],records:[],ledger:[],profile:{name:'',notes:''},settings:{hideOnLeave:true,paused:false,morning:'08:00',noon:'',evening:'21:00',gratitude:''}};
 }
 export function validDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000')) return false;
@@ -48,6 +48,8 @@ export function validateState(state) {
   const string = value => typeof value === 'string' && value.length <= 10000;
   if (!state || state.version !== 4 || !state.days || typeof state.days !== 'object' || Array.isArray(state.days)) throw Error('备份版本或结构无效');
   validateSubscription(state.subscription);
+  if(state.anniversaries!==undefined){if(!Array.isArray(state.anniversaries)||state.anniversaries.length>2000)throw Error('天数记录列表无效');const ids=new Set();for(const r of state.anniversaries){if(!r||!validMediaId(r.id)||ids.has(r.id)||typeof r.title!=='string'||!r.title.trim()||r.title.length>200||!validDate(r.startDate)||!['inclusive','elapsed'].includes(r.countMode)||!['already','ordinal','countdown'].includes(r.display)||typeof r.pinned!=='boolean'||r.source!=='daysmatter'||!validDate(r.referenceDate)||!Number.isSafeInteger(r.sharedDays)||r.sharedDays<0||r.sharedDays>3652058||typeof r.sourceText!=='string'||r.sourceText.length>1000||![r.createdAt,r.updatedAt].every(t=>typeof t==='string'&&Number.isFinite(Date.parse(t))&&new Date(t).toISOString()===t))throw Error('天数记录内容无效');ids.add(r.id);}}
+
   if(state.identityContract!==undefined){const r=state.identityContract;
     if(!r||!validMediaId(r.id)||typeof r.name!=='string'||!r.name.trim()||r.name.length>40||typeof r.pledge!=='string'||r.pledge!=='本人'+r.name+'，自愿遵守曾家家规，作为狗奴才加入曾家。自此以守护曾家人的利益，提高曾家人的生活为责任，服务曾家，永不背叛。'||!Number.isFinite(Date.parse(r.signedAt))||new Date(r.signedAt).toISOString()!==r.signedAt||!['videoHash','signatureHash'].every(k=>typeof r[k]==='string'&&/^[a-f0-9]{64}$/.test(r[k]))||r.nasPath!=='曾家家奴/固定档案/'+r.id)throw Error('身份契约记录无效');
   }
