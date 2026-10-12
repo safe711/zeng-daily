@@ -42,7 +42,7 @@ let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
 const lanBackup=createLanBackup({photos:async()=>(await listPhotos()).filter(usedRitualPhoto),records:()=>state.shoeRecords,tasks:()=>state.tasks,notify,getAccountToken:()=>accountClient?.token});
-const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onAuthenticated:()=>setHidden(false),onWelcome:profile=>{if(!hidden){notify('');showWelcome(profile,state.servantProfile);}},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){page=hasPendingDaysMatter()?'档案':'今日';hidden=isAccountLocked();ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
+const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onAuthenticated:()=>setHidden(false),onConnection:paintConnection,onWelcome:profile=>{if(!hidden){notify('');showWelcome(profile,state.servantProfile);}},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){page=hasPendingDaysMatter()?'档案':'今日';hidden=isAccountLocked();ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
 let page = '今日';
 let accountWasLoggedIn=false;
 let hidden = isAccountLocked();
@@ -117,6 +117,7 @@ function commit(change,rerender=true) {
 }
 function isAccountLocked(){try{return localStorage.getItem('daily-account-locked')===accountClient.profile?.id;}catch{return false;}}
 function setHidden(value){hidden=value;try{if(value&&accountClient.profile?.id)localStorage.setItem('daily-account-locked',accountClient.profile.id);else localStorage.removeItem('daily-account-locked');}catch{}if(value){closeWelcome();stopCamera();}}
+function paintConnection(){const online=accountClient.connected;for(const node of document.querySelectorAll('[data-server-connection]')){node.textContent=online?'在线':'离线';node.className=online?'network-online':'network-offline';}}
 function removeLock(){lockScreen?.remove();lockScreen=null;content.inert=false;content.style.visibility='';document.querySelector('header').style.visibility='';document.querySelector('nav').style.visibility='';}
 function paintLock(){closeWelcome();for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();content.inert=true;content.style.visibility='hidden';document.querySelector('header').style.visibility='hidden';document.querySelector('nav').style.visibility='hidden';if(lockScreen)return;lockScreen=document.createElement('div');lockScreen.className='content-lock';lockScreen.setAttribute('role','dialog');lockScreen.setAttribute('aria-modal','true');lockScreen.setAttribute('aria-label','内容解锁');document.body.append(lockScreen);lockScreen.addEventListener('click',e=>e.stopPropagation());accountClient.unlockView(lockScreen,()=>{setHidden(false);removeLock();render();});}
 function bindFoldout(fold,key){const storeKey='daily-fold:'+accountClient.profile.id+':'+key;try{fold.open=localStorage.getItem(storeKey)==='open';}catch{}fold.addEventListener('toggle',()=>{try{localStorage.setItem(storeKey,fold.open?'open':'closed');}catch{}if(!fold.open)for(const video of fold.querySelectorAll('video'))video.pause();});}
@@ -144,8 +145,8 @@ function render() {
 
   const today = state.days[dayKey()] || {};
   const paused = state.settings.paused;
-  const status = navigator.onLine ? '<span class="network-online" aria-label="设备网络在线">在线</span>' : '<span class="network-offline">离线</span>';
-  const heading = `<div class="eyebrow">${dayKey()} · ${status}${paused?' · 已暂停':''}</div><h2>${page==='今日'?'每日礼仪':page==='订阅'?'订阅挡灾':page}</h2>`;
+  const status=accountClient.connected?'<span data-server-connection class="network-online">在线</span>':'<span data-server-connection class="network-offline">离线</span>';
+  const heading = `<div class="eyebrow account-presence">${escape(accountClient.profile.name)} · ${status}<time datetime="${dayKey()}">${dayKey()}</time>${paused?' · 已暂停':''}</div><h2>${page==='今日'?'每日礼仪':page==='订阅'?'订阅挡灾':page}</h2>`;
   let body = '';
   if(page==='家规')body=houseRulesHtml();
   if(page==='今日') {
