@@ -1,3 +1,4 @@
+import {replaceEvidencePhoto} from './photoedit.js';
 import {showStartup} from './startup.js';
 import {installDialogDismissal} from './dialogs.js';
 import {openPhotoCamera,installPhotoCameras} from './camera.js';
@@ -9,7 +10,7 @@ import {dayKey,initialState,parseBackup,points,daily,completeTask,taskInDateRang
 import {readState,writeState} from './storage.js';
 import {createHoldController} from './hold.js';
 import {ritualGreeting,ritualInstruction,completeRitual,ritualEvidence} from './ritual.js';
-import {savePhoto,deletePhoto,getPhoto,listPhotos,clearMedia,latestRitualPhoto,syncPhoto,getReport,listReports} from './photos.js';
+import {savePhoto,deletePhoto,getPhoto,listPhotos,clearMedia,latestRitualPhoto,syncPhoto,resetPhotoUploads,getReport,listReports} from './photos.js';
 import {archiveReport,syncPendingReports,resetReportQueue} from './reports.js';
 import {ritualReport,reportText,buildShareCard,sharePrepared} from './share.js';
 import {mountSubscription} from './subscriptionview.js';
@@ -235,7 +236,7 @@ function renderRitual() {
 
     const note=content.querySelector('.ritual-note');
     if(note)note.replaceWith(photoPanel);else content.querySelector('.ritual-action').before(photoPanel);
-    if(currentPhoto){const image=document.createElement('img');image.alt='本次请安打卡照片';const url=URL.createObjectURL(currentPhoto.blob);photoUrls.push(url);image.src=url;photoPanel.querySelector('#photo-preview').append(image);}
+    if(currentPhoto){const image=document.createElement('img');image.alt='本次请安打卡照片';const url=URL.createObjectURL(currentPhoto.blob);photoUrls.push(url);image.src=url;photoPanel.querySelector('#photo-preview').append(image);image.classList.add('editable-photo');image.tabIndex=0;image.setAttribute('role','button');image.title='点击查看或重新拍照';image.onclick=()=>startCamera(true).catch(error=>notify(error.message));image.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();image.click();}};}
     if(!done && !currentPhoto){button.disabled=true;button.querySelector('.hold-label').textContent=state.settings.paused?'日课已暂停':photoLoading?'正在读取照片…':'先拍照打卡，再完成礼仪';}
   }
   if(button.disabled)return;
@@ -280,7 +281,8 @@ function photoStatus(photo) {
   if(staticHosting)return mediaStatus(photo,true);
   return photo.status==='uploaded'?'照片已保存到 服务器 · 日课请安':'照片已保存在本机 · 服务器 待同步';
 }
-async function startCamera(){if(state.settings.paused)throw Error('日课已暂停');if(cameraStarting)return;const kind=ritualKind,date=dayKey(),account=accountClient.profile.id,request=++cameraRequest;if(!kind||page!=='今日')return;discardUnusedPhoto();cameraStarting=true;const launch=content.querySelector('[data-action="start-camera"]');if(launch)launch.hidden=true;const download=content.querySelector('[data-action="download-photo"]');if(download)download.hidden=true;content.querySelector('#photo-preview')?.replaceChildren();closeRitualCamera=openPhotoCamera({title:'请安拍照',onError:notify,onClose:({captured})=>{closeRitualCamera=null;cameraStarting=false;if(!captured&&request===cameraRequest&&page==='今日'&&kind===ritualKind&&!hidden)render();},onCapture:file=>{if(request!==cameraRequest||page!=='今日'||ritualKind!==kind||date!==dayKey()||hidden||accountClient.profile.id!==account)return;currentPhoto={id:crypto.randomUUID(),date,kind,source:'camera',createdAt:new Date().toISOString(),blob:file,status:'pending',remotePath:'',error:''};photoKey=date+':'+kind+':draft';photoLoading=false;render();notify('照片已拍下，完成礼仪后保存');}});}
+async function startCamera(review=false){if(state.settings.paused)throw Error('日课已暂停');if(cameraStarting)return;const kind=ritualKind,date=dayKey(),account=accountClient.profile.id,request=++cameraRequest;if(!kind||page!=='今日')return;const original=currentPhoto;cameraStarting=true;const launch=content.querySelector('[data-action="start-camera"]');if(launch)launch.hidden=true;const download=content.querySelector('[data-action="download-photo"]');if(download)download.hidden=true;content.querySelector('#photo-preview')?.replaceChildren();closeRitualCamera=openPhotoCamera({title:'请安拍照',initialPhoto:review?original?.blob:null,onError:notify,onClose:({captured})=>{closeRitualCamera=null;cameraStarting=false;if(!captured&&request===cameraRequest&&page==='今日'&&kind===ritualKind&&!hidden)render();},onCapture:async(file,{changed=true}={})=>{if(request!==cameraRequest||page!=='今日'||ritualKind!==kind||date!==dayKey()||hidden||accountClient.profile.id!==account)return;if(!changed){render();return;}const photo={id:crypto.randomUUID(),date,kind,source:'camera',createdAt:new Date().toISOString(),blob:file,status:'pending',remotePath:'',error:''};if(original&&usedRitualPhoto(original)){resetPhotoUploads();await savePhoto(photo);try{if(request!==cameraRequest||hidden||accountClient.profile.id!==account)throw Error('页面已变化，请重新打开照片');commit(draft=>replaceEvidencePhoto(draft,{type:'ritual',date,kind,oldId:original.id},photo.id),false);}catch(error){await deletePhoto(photo.id);throw error;}await deletePhoto(original.id);currentPhoto=photo;photoKey=date+':'+kind+':'+photo.id;photoLoading=false;render();retryMedia();notify('照片已替换，原完成时间和积分保留');}else{currentPhoto=photo;photoKey=date+':'+kind+':draft';photoLoading=false;render();notify('照片已确认，完成礼仪后保存');}}});}
+function reviewRitualPhoto(original){if(hidden||state.settings.paused)return;const kind=RITUAL_KINDS.find(k=>ritualEvidence(state.days[original.date],k).photoId===original.id);if(!kind)return;stopCamera();const request=cameraRequest,account=accountClient.profile.id;closeRitualCamera=openPhotoCamera({title:original.date+' · '+ritualNames[kind],initialPhoto:original.blob,onError:notify,onClose:()=>{closeRitualCamera=null;},onCapture:async(file,{changed})=>{if(!changed||request!==cameraRequest||hidden||accountClient.profile.id!==account)return;const photo={...original,kind,id:crypto.randomUUID(),blob:file,source:'camera',createdAt:new Date().toISOString(),status:'pending',remotePath:'',error:'',fingerprint:''};resetPhotoUploads();await savePhoto(photo);try{if(request!==cameraRequest||hidden||accountClient.profile.id!==account)throw Error('页面已变化，请重新打开照片');commit(draft=>replaceEvidencePhoto(draft,{type:'ritual',date:original.date,kind,oldId:original.id},photo.id),false);}catch(e){await deletePhoto(photo.id);throw e;}await deletePhoto(original.id);await renderPhotoAlbum();retryMedia();notify('照片已替换，原礼仪时间和积分保留');}});}
 async function syncSavedPhoto(photo) {
   if(staticHosting)throw Error('网页版仅保存本机图片，不提供 服务器 上传服务');
   if(syncingPhotos.has(photo.id))return false;
@@ -352,7 +354,7 @@ async function renderPhotoAlbum() {
     for(const photo of photos){
       const item=document.createElement('article');
       item.innerHTML=`<small>${escape(photo.date)} · ${escape(ritualNames[photo.kind]||'旧照片')} · ${ritualEvidence(state.days[photo.date],photo.kind).photoId===photo.id?'已完成礼仪的照片':'拍摄记录'}</small><p>${escape(photoStatus(photo))}</p><button data-action="download-photo" data-id="${escape(photo.id)}">下载照片</button>${!staticHosting&&photo.status!=='uploaded'?`<button data-action="sync-photo" data-id="${escape(photo.id)}">上传至 服务器</button>`:''}`;
-      const image=document.createElement('img');image.alt=`${photo.date} 请安打卡照片`;image.loading='lazy';const url=URL.createObjectURL(photo.blob);photoUrls.push(url);image.src=url;item.prepend(image);element.append(item);
+      const image=document.createElement('img');image.alt=`${photo.date} 请安打卡照片`;image.loading='lazy';const url=URL.createObjectURL(photo.blob);photoUrls.push(url);image.src=url;image.classList.add('editable-photo');image.tabIndex=0;image.setAttribute('role','button');image.title='点击查看或重新拍照';image.onclick=()=>reviewRitualPhoto(photo);image.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();image.click();}};item.prepend(image);element.append(item);
     }
   }catch{if(element.isConnected)element.textContent='照片读取失败，请检查本机存储。';}
 }
