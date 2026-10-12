@@ -10,7 +10,7 @@ export function ritualReport(state,date=dayKey()) {
   return {date,entries,completed:entries.filter(entry=>entry.completed).length,allComplete:entries.every(entry=>entry.completed)};
 }
 export function reportText(report) {
-  return `Zeng Legacy · ${report.date}\n每日礼仪 ${report.completed} / ${RITUAL_KINDS.length}\n\n`+report.entries.map(entry=>`${entry.title}\n${entry.phrase}\n完成时间：${entry.completedTime}`).join('\n\n');
+  return `ZENG LEGACY · ${report.date}\n每日礼仪 ${report.completed} / ${RITUAL_KINDS.length}\n\n`+report.entries.map(entry=>`${entry.title}\n${entry.phrase}\n完成时间：${entry.completedTime}`).join('\n\n');
 }
 function wrapText(context,text,width) {
   const lines=[];
@@ -48,7 +48,7 @@ export async function buildShareCard(report,getPhoto) {
   }));
   canvas.height=320+blocks.reduce((sum,block)=>sum+block.height+20,0);
   context.fillStyle='#131313';context.fillRect(0,0,canvas.width,canvas.height);
-  context.fillStyle='#e4cfaa';context.font='bold 34px system-ui, sans-serif';context.fillText('Zeng Legacy · 每日礼仪',40,62);
+  context.fillStyle='#e4cfaa';context.font='bold 34px system-ui, sans-serif';context.fillText('ZENG LEGACY · 每日礼仪',40,62);
   context.fillStyle='#aaaab4';context.font='21px system-ui, sans-serif';context.fillText(`${report.date}    已完成 ${report.completed} / ${RITUAL_KINDS.length}`,40,105);
   let top=140;
   for(const block of blocks){

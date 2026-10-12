@@ -41,7 +41,7 @@ const staticHosting=isStaticHosting();
 const pushClient=createPushClient({staticHosting});
 const content = document.querySelector('#content');
 const seal=document.querySelector('.seal');
-seal.textContent='';seal.setAttribute('role','img');seal.setAttribute('aria-label','Zeng Legacy 龙纹标识');
+seal.textContent='';seal.setAttribute('role','img');seal.setAttribute('aria-label','ZENG LEGACY 龙纹标识');
 const message = document.querySelector('#message');
 const notify=createNotifier(message);
 const checkForUpdate=createUpdater({notify});
@@ -102,7 +102,7 @@ function reminderPanel() {
 async function paintPushStatus(){
   await pushClient.refresh();const element=content.querySelector('#push-status');if(!element)return;
   const configured=!!pushClient.configuration?.pushConfigured;const supported=pushClient.supported();
-  const installation=content.querySelector('#offline')?.closest('section');if(installation)installation.querySelector('p:last-child').textContent=configured?'主屏幕名称“Zeng Legacy”；在下方开启自建后台提醒，仍需手机接收实测。':'主屏幕名称“Zeng Legacy”；后台提醒须另接 服务器/Windows 持续运行的发送服务。';
+  const installation=content.querySelector('#offline')?.closest('section');if(installation)installation.querySelector('p:last-child').textContent=configured?'主屏幕名称“ZENG LEGACY”；在下方开启自建后台提醒，仍需手机接收实测。':'主屏幕名称“ZENG LEGACY”；后台提醒须另接 服务器/Windows 持续运行的发送服务。';
   if(pushClient.configuration?.private){
     content.querySelector('section p').textContent='文字与新签名仍保存在浏览器；原契约从需登录的私有服务读取，匿名推送时间表保存在自建服务。无统计追踪。';
     const connection=content.querySelector('form[data-form="nas-connect"]');if(connection){connection.nextElementSibling?.remove();connection.replaceWith(Object.assign(document.createElement('p'),{textContent:'私有版使用登录会话传送图片，无需再次填写 服务器 账号或上传密钥。'}));}
@@ -152,7 +152,7 @@ function render() {
   if(!accountClient.loggedIn){document.querySelector('nav').innerHTML='';document.querySelector('header small').textContent='曾氏传承 · 身份验证';accountClient.loginView(content);content.insertAdjacentHTML('beforeend','<p class="muted login-version">当前版本 '+APP_VERSION+'</p><button class="login-release-button" data-action="release-log">更新日志</button>'+releaseLogHtml()+certificateGuideHtml());return;}
   document.querySelector('header small').textContent=accountClient.profile.identity+'（'+accountClient.profile.name+'）';
   document.querySelector('nav').innerHTML = ['家规','今日','任务','积分','档案','订阅','隐私'].map(name=>`<button data-page="${name}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name==='家规'?'曾氏':name}</button>`).join('');
-  document.querySelector('h1').textContent = 'Zeng Legacy';
+  document.querySelector('h1').textContent = 'ZENG LEGACY';
 
   const today = state.days[dayKey()] || {};
   const paused = state.settings.paused;
@@ -170,7 +170,7 @@ function render() {
   if(page==='任务') body=tasksHtml(state).replace('<div class="task-list">',reminderPanel()+'<div class="task-list">');
   if(page==='积分') body = collectionHtml(state)+`<section><small>忠诚积分 · 虚拟计分</small><div class="score">${points(state)}</div><p>请安与复命各 +2，已开展任务完成 +3。警告不自动扣分。</p></section><form data-form="ledger"><label>类型<select name="kind"><option value="reward">虚拟嘉奖</option><option value="warning">虚拟警告</option></select></label>${input('points','分值（-1000 至 1000）','0','number')}${area('text','说明')}<button ${paused?'disabled':''}>记录虚拟反馈</button></form>${list([...state.ledger].reverse().map(entry=>({...entry,text:`${entry.kind==='warning'?'虚拟警告':entry.kind==='reward'?'虚拟嘉奖':'积分'} ${entry.points>=0?'+':''}${entry.points} · ${entry.text}`})))}`;
   if(page==='档案') body = `<section class="fixed-profile" aria-labelledby="fixed-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="fixed-profile-title">主子：曾仪</h3><div id="profile-portrait"><p class="muted">正在读取主子照片…</p></div><dl><div><dt>生日</dt><dd>2003年</dd></div><div><dt>学历</dt><dd>研究生</dd></div><div><dt>学校</dt><dd>对外经济贸易大学</dd></div><div><dt>专属狗奴</dt><dd>于涵、小姜</dd></div></dl><h4>简介</h4><p>目前负责管理曾家狗奴才，发布命令，收取贡金，办理灾祸出售等业务。</p></section><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 服务器 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 服务器。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${ritualHistoryHtml(state)}`;
-  if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“Zeng Legacy”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
+  if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“ZENG LEGACY”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
   const mediaSaved=manual=>staticHosting?(manual?lanBackup.retry():lanBackup.run()):syncTaskMedia(state.tasks,{key:nasToken}).then(()=>retryMedia()).catch(error=>notify('图片保留待补传：'+error.message));
   if(taskDetailId&&page==='任务'){unmountTask=mountTask(content,taskDetailId,{getState:()=>state,commit:change=>commit(change,false),notify,onBack:()=>{taskDetailId=null;history.replaceState(null,'',location.pathname+location.search);render();},onMediaSaved:mediaSaved});return;}
   if(shoeTaskId&&page==='任务'){
