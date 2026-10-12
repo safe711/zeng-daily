@@ -1,3 +1,4 @@
+import {installDialogDismissal} from './dialogs.js';
 import {openPhotoCamera,installPhotoCameras} from './camera.js';
 import {showWelcome,closeWelcome,servantProfileHtml,disasterServantsHtml,mountServantProfile} from './servant.js';
 import {captureDaysMatterShare,hasPendingDaysMatter,mountDaysMatter,dayRecordsHtml} from './daysmatter.js';
@@ -29,6 +30,7 @@ import {shareTaskFile} from './taskfiles.js';
 import {buildShoeCard} from './shoecard.js';
 import {getShoePhoto} from './photos.js';
 import {houseRulesHtml} from './rules.js';
+installDialogDismissal();
 captureDaysMatterShare();
 const staticHosting=isStaticHosting();
 const pushClient=createPushClient({staticHosting});
