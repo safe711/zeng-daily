@@ -34,12 +34,12 @@ async function syncAsset(asset,token,report,{fetcher=fetch,persist=report?saveSh
   if(asset.status==='uploaded')return asset;
   const epoch=mediaGeneration();
   try{
-    if(!token)throw Error('NAS 上传尚未连接，图片已保存在本机');
+    if(!token)throw Error('服务器 上传尚未连接，图片已保存在本机');
     const fingerprint=await photoFingerprint(asset.blob);if(epoch!==mediaGeneration())return null;
     const parameters=new URLSearchParams({date:asset.date,record:asset.recordId});if(asset.taskName)parameters.set('name',asset.taskName);
     if(!report){parameters.set('shoe',asset.shoeId);parameters.set('phase',asset.phase);parameters.set('id',asset.id);}
     const response=await fetcher(`./api/nas/shoes/${report?'reports':'photos'}?${parameters}`,{method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':type,'Authorization':`Bearer ${token}`,'X-Shoe-Fingerprint':fingerprint},body:asset.blob,signal:AbortSignal.timeout(90000)});
-    const result=await response.json();if(!response.ok||result.uploaded!==true||result.path!==path||result.fingerprint!==fingerprint)throw Error(result.error||'NAS 未确认洗鞋图片内容与目录');
+    const result=await response.json();if(!response.ok||result.uploaded!==true||result.path!==path||result.fingerprint!==fingerprint)throw Error(result.error||'服务器 未确认洗鞋图片内容与目录');
     if(epoch!==mediaGeneration())return null;
     const updated={...asset,fingerprint,status:'uploaded',remotePath:result.path,error:''};await persist(updated);return updated;
   }catch(error){if(epoch===mediaGeneration())await persist({...asset,status:'pending',error:error.message});throw error;}

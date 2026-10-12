@@ -17,7 +17,7 @@ export async function syncReport(report,token,{fetcher=fetch,persist=saveReport}
     if(!token)throw Error('本机上传服务连接密钥尚未填写');
     const response=await fetcher(`./api/nas/reports?date=${encodeURIComponent(report.date)}`,{method:'POST',headers:{'Content-Type':'image/png','Authorization':`Bearer ${token}`,'X-Report-Fingerprint':report.fingerprint},body:report.blob,signal:AbortSignal.timeout(90000)});
     const result=await response.json();const expected=`日课分享截图/${report.date.slice(0,7)}/${report.date}.png`;
-    if(!response.ok||result.uploaded!==true||result.fingerprint!==report.fingerprint||result.path!==expected)throw Error(result.error||'NAS 未确认截图写入');
+    if(!response.ok||result.uploaded!==true||result.fingerprint!==report.fingerprint||result.path!==expected)throw Error(result.error||'服务器 未确认截图写入');
     const updated={...report,status:'uploaded',remotePath:result.path,error:''};
     if(generation===epoch)await persist(updated);
     return updated;

@@ -87,12 +87,12 @@ export async function syncPhoto(photo,token,{fetcher=fetch,persist=savePhoto}={}
   const epoch=photoGeneration;
   let uploaded;
   try {
-    if(!token)throw Error('NAS 连接密钥尚未填写');
+    if(!token)throw Error('服务器 连接密钥尚未填写');
     const fingerprint=await photoFingerprint(photo.blob);
     if(epoch!==photoGeneration)return null;
     const response=await fetcher(`./api/nas/photos?date=${encodeURIComponent(photo.date)}&kind=${encodeURIComponent(photo.kind)}&id=${encodeURIComponent(photo.id)}`,{method:'POST',credentials:'same-origin',redirect:'error',headers:{'Content-Type':'image/jpeg','Authorization':`Bearer ${token}`,'X-Photo-Fingerprint':fingerprint},body:photo.blob,signal:AbortSignal.timeout(30000)});
     const result=await response.json();
-    if(!response.ok||result.uploaded!==true||result.path!==expected||result.fingerprint!==fingerprint)throw Error(result.error||'NAS 未确认照片内容与保存目录');
+    if(!response.ok||result.uploaded!==true||result.path!==expected||result.fingerprint!==fingerprint)throw Error(result.error||'服务器 未确认照片内容与保存目录');
     uploaded={...photo,status:'uploaded',remotePath:result.path,fingerprint,error:''};
   }catch(error){
     if(epoch===photoGeneration)await persist({...photo,status:'pending',error:error.name==='TimeoutError'?'连接超时，可稍后重试':error.message});
@@ -108,7 +108,7 @@ export async function deleteTaskMedia({taskId,recordIds,shoePhotoIds,taskMediaId
   const tx=db.transaction(['shoePhotos','shoeReports','subscriptionMedia'],'readwrite');
   const sets={shoePhotos:new Set(shoePhotoIds),shoeReports:new Set(recordIds),subscriptionMedia:new Set(taskMediaIds)};
   for(const name of Object.keys(sets)){const request=tx.objectStore(name).openCursor();request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;const asset=cursor.value;if(sets[name].has(cursor.primaryKey)||(name==='subscriptionMedia'&&['task-photo','task-report'].includes(asset.role)&&asset.taskId===taskId)||(name!=='subscriptionMedia'&&recordIds.includes(asset.recordId)))cursor.delete();cursor.continue();};}
-  tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(Error('任务已删除，本机关联图片清理未完成；NAS 备份保留'));
+  tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(Error('任务已删除，本机关联图片清理未完成；服务器 备份保留'));
  });
 }
 

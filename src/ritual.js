@@ -66,7 +66,7 @@ export function completeRitual(state,kind,photo,date=dayKey(),completedAt=new Da
   requireRitualPhoto(photo,kind,date);
   if(!(completedAt instanceof Date) || Number.isNaN(completedAt.getTime()))throw Error('完成时间无效');
   const phrase=ritualGreeting(kind,date);
-  daily(state,kind,`完成${RITUAL_NAMES[kind]}礼仪（长按 3 秒）\n朗读文字：${phrase}${kind==='morning'?'\n磕头请安：10 个（自行完成）':''}\n拍照打卡已保存；NAS 状态请查看照片。`,date);
+  daily(state,kind,`完成${RITUAL_NAMES[kind]}礼仪（长按 3 秒）\n朗读文字：${phrase}${kind==='morning'?'\n磕头请安：10 个（自行完成）':''}\n拍照打卡已保存；服务器 状态请查看照片。`,date);
   state.days[date].ritualMeta ||= {};
   state.days[date].ritualMeta[kind]={phrase,photoId:photo.id,completedAt:completedAt.toISOString(),completedTime:completedAt.toTimeString().slice(0,8)};
   if(kind==='morning'){state.days[date].morningPhotoId=photo.id;state.days[date].morningPhrase=phrase;}

@@ -34,7 +34,7 @@ export function createPushClient({staticHosting=false}={}){
     });serial=pending;return pending;
   }
   async function enable(settings){
-    if(!configuration?.pushConfigured)throw Error('NAS/Windows 后台推送发送未开通');
+    if(!configuration?.pushConfigured)throw Error('服务器/Windows 后台推送发送未开通');
     if(!supported())throw Error('此环境不支持推送，请用可信 HTTPS，并在 iPhone 主屏幕打开');
     const mobileApple=/iPhone|iPad|iPod/.test(navigator.userAgent)||navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1;
     if(mobileApple&&!matchMedia('(display-mode: standalone)').matches&&!navigator.standalone)throw Error('请先添加到 iPhone 主屏幕，再从主屏幕开启提醒');

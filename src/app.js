@@ -93,12 +93,12 @@ function reminderPanel() {
 async function paintPushStatus(){
   await pushClient.refresh();const element=content.querySelector('#push-status');if(!element)return;
   const configured=!!pushClient.configuration?.pushConfigured;const supported=pushClient.supported();
-  const installation=content.querySelector('#offline')?.closest('section');if(installation)installation.querySelector('p:last-child').textContent=configured?'主屏幕名称“曾家家奴”；在下方开启自建后台提醒，仍需手机接收实测。':'主屏幕名称“曾家家奴”；后台提醒须另接 NAS/Windows 持续运行的发送服务。';
+  const installation=content.querySelector('#offline')?.closest('section');if(installation)installation.querySelector('p:last-child').textContent=configured?'主屏幕名称“曾家家奴”；在下方开启自建后台提醒，仍需手机接收实测。':'主屏幕名称“曾家家奴”；后台提醒须另接 服务器/Windows 持续运行的发送服务。';
   if(pushClient.configuration?.private){
     content.querySelector('section p').textContent='文字与新签名仍保存在浏览器；原契约从需登录的私有服务读取，匿名推送时间表保存在自建服务。无统计追踪。';
-    const connection=content.querySelector('form[data-form="nas-connect"]');if(connection){connection.nextElementSibling?.remove();connection.replaceWith(Object.assign(document.createElement('p'),{textContent:'私有版使用登录会话传送图片，无需再次填写 NAS 账号或上传密钥。'}));}
+    const connection=content.querySelector('form[data-form="nas-connect"]');if(connection){connection.nextElementSibling?.remove();connection.replaceWith(Object.assign(document.createElement('p'),{textContent:'私有版使用登录会话传送图片，无需再次填写 服务器 账号或上传密钥。'}));}
   }
-  element.textContent=staticHosting?'GitHub 静态版没有后台发送服务':!configured?'NAS/Windows 后台发送尚未配置':!supported?'后台服务已配置；请用可信 HTTPS，并在 iPhone 主屏幕开启':pushClient.registered?'此设备已登记 · 需关闭应用实测接收':'自建发送服务已配置 · 此设备尚未开启';
+  element.textContent=staticHosting?'GitHub 静态版没有后台发送服务':!configured?'服务器/Windows 后台发送尚未配置':!supported?'后台服务已配置；请用可信 HTTPS，并在 iPhone 主屏幕开启':pushClient.registered?'此设备已登记 · 需关闭应用实测接收':'自建发送服务已配置 · 此设备尚未开启';
   content.querySelector('[data-action="enable-push"]').disabled=!configured||!supported;
   content.querySelector('[data-action="test-push"]').disabled=!configured||!pushClient.registered;
   content.querySelector('[data-action="stop-push"]').disabled=!configured||!pushClient.registered;
@@ -117,6 +117,9 @@ function isAccountLocked(){try{return localStorage.getItem('daily-account-locked
 function setHidden(value){hidden=value;try{if(value&&accountClient.profile?.id)localStorage.setItem('daily-account-locked',accountClient.profile.id);else localStorage.removeItem('daily-account-locked');}catch{}if(value)closeWelcome();}
 function removeLock(){lockScreen?.remove();lockScreen=null;content.inert=false;content.style.visibility='';document.querySelector('header').style.visibility='';document.querySelector('nav').style.visibility='';}
 function paintLock(){closeWelcome();for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();content.inert=true;content.style.visibility='hidden';document.querySelector('header').style.visibility='hidden';document.querySelector('nav').style.visibility='hidden';if(lockScreen)return;lockScreen=document.createElement('div');lockScreen.className='content-lock';lockScreen.setAttribute('role','dialog');lockScreen.setAttribute('aria-modal','true');lockScreen.setAttribute('aria-label','内容解锁');document.body.append(lockScreen);lockScreen.addEventListener('click',e=>e.stopPropagation());accountClient.unlockView(lockScreen,()=>{setHidden(false);removeLock();render();});}
+function bindFoldout(fold,key){const storeKey='daily-fold:'+accountClient.profile.id+':'+key;try{fold.open=localStorage.getItem(storeKey)==='open';}catch{}fold.addEventListener('toggle',()=>{try{localStorage.setItem(storeKey,fold.open?'open':'closed');}catch{}if(!fold.open)for(const video of fold.querySelectorAll('video'))video.pause();});}
+function archiveFoldouts(){function group(title,key,nodes){if(!nodes.length)return;const fold=document.createElement('details');fold.className='archive-fold';fold.dataset.fold=key;const summary=document.createElement('summary');summary.textContent=title;fold.append(summary);nodes[0].before(fold);const inside=document.createElement('div');inside.className='fold-body';fold.append(inside);for(const node of nodes)inside.append(node);bindFoldout(fold,key);}
+group('曾家主子','masters',[...content.querySelectorAll('.fixed-profile:not(.disaster-servant-profile)')]);group('曾家奴才','servants',[...content.querySelectorAll('.servant-profile,.disaster-servant-profile')]);const photos=content.querySelector('#photo-album')?.closest('section');if(photos){photos.querySelector('h3')?.remove();group('礼仪照片 · 日课请安','ritual-photos',[photos]);}}
 function render() {
   if(hidden&&accountClient.loggedIn){paintLock();return;}
   removeLock();
@@ -138,7 +141,7 @@ function render() {
 
   const today = state.days[dayKey()] || {};
   const paused = state.settings.paused;
-  const status = navigator.onLine ? '本地模式' : '离线模式';
+  const status = navigator.onLine ? '<span class="network-online" aria-label="设备网络在线">在线</span>' : '<span class="network-offline">离线</span>';
   const heading = `<div class="eyebrow">${dayKey()} · ${status}${paused?' · 已暂停':''}</div><h2>${page==='今日'?'每日礼仪':page==='订阅'?'订阅挡灾':page}</h2>`;
   let body = '';
   if(page==='家规')body=houseRulesHtml();
@@ -151,7 +154,7 @@ function render() {
   }
   if(page==='任务') body=tasksHtml(state).replace('<div class="task-list">',reminderPanel()+'<div class="task-list">');
   if(page==='积分') body = `<section><small>忠诚积分 · 虚拟计分</small><div class="score">${points(state)}</div><p>请安与复命各 +2，已开展任务完成 +3。警告不自动扣分。</p></section><form data-form="ledger"><label>类型<select name="kind"><option value="reward">虚拟嘉奖</option><option value="warning">虚拟警告</option></select></label>${input('points','分值（-1000 至 1000）','0','number')}${area('text','说明')}<button ${paused?'disabled':''}>记录虚拟反馈</button></form>${list([...state.ledger].reverse().map(entry=>({...entry,text:`${entry.kind==='warning'?'虚拟警告':entry.kind==='reward'?'虚拟嘉奖':'积分'} ${entry.points>=0?'+':''}${entry.points} · ${entry.text}`})))}`;
-  if(page==='档案') body = `<section class="fixed-profile" aria-labelledby="fixed-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="fixed-profile-title">主子：曾仪</h3><div id="profile-portrait"><p class="muted">正在读取主子照片…</p></div><dl><div><dt>生日</dt><dd>2003年</dd></div><div><dt>学历</dt><dd>研究生</dd></div><div><dt>学校</dt><dd>对外经济贸易大学</dd></div><div><dt>专属狗奴</dt><dd>于涵、小姜</dd></div></dl><h4>简介</h4><p>目前负责管理曾家狗奴才，发布命令，收取贡金，办理灾祸出售等业务。</p></section><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 NAS 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 NAS。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${list(Object.entries(state.days).sort(([first],[second])=>second.localeCompare(first)).map(([date,entry])=>({date,text:RITUAL_KINDS.map(kind=>`${ritualNames[kind]}：${entry[kind]??'未记录'}${entry[kind]!==undefined?`\n完成时间：${ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'}`:''}`).join('\n\n')+(entry.legacyEvening!==undefined?`\n\n晚间复命（旧记录）：${entry.legacyEvening}`:'')})))}`;
+  if(page==='档案') body = `<section class="fixed-profile" aria-labelledby="fixed-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="fixed-profile-title">主子：曾仪</h3><div id="profile-portrait"><p class="muted">正在读取主子照片…</p></div><dl><div><dt>生日</dt><dd>2003年</dd></div><div><dt>学历</dt><dd>研究生</dd></div><div><dt>学校</dt><dd>对外经济贸易大学</dd></div><div><dt>专属狗奴</dt><dd>于涵、小姜</dd></div></dl><h4>简介</h4><p>目前负责管理曾家狗奴才，发布命令，收取贡金，办理灾祸出售等业务。</p></section><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 服务器 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 服务器。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${list(Object.entries(state.days).sort(([first],[second])=>second.localeCompare(first)).map(([date,entry])=>({date,text:RITUAL_KINDS.map(kind=>`${ritualNames[kind]}：${entry[kind]??'未记录'}${entry[kind]!==undefined?`\n完成时间：${ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'}`:''}`).join('\n\n')+(entry.legacyEvening!==undefined?`\n\n晚间复命（旧记录）：${entry.legacyEvening}`:'')})))}`;
   if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“曾家家奴”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
   const mediaSaved=manual=>staticHosting?(manual?lanBackup.retry():lanBackup.run()):syncTaskMedia(state.tasks,{key:nasToken}).then(()=>retryMedia()).catch(error=>notify('图片保留待补传：'+error.message));
   if(taskDetailId&&page==='任务'){unmountTask=mountTask(content,taskDetailId,{getState:()=>state,commit:change=>commit(change,false),notify,onBack:()=>{taskDetailId=null;history.replaceState(null,'',location.pathname+location.search);render();},onMediaSaved:mediaSaved});return;}
@@ -163,6 +166,8 @@ function render() {
   if(page==='今日'&&!ritualKind&&!reportOpen)body=dayRecordsHtml(state,true)+body;
   if(page==='档案')body=dayRecordsHtml(state)+body.replace('</section><section><h3>礼仪照片', '</section><section class="fixed-profile parents-profile" aria-labelledby="parents-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="parents-profile-title">主子：曾仪父母</h3><div class="parents-photo-blank" role="img" aria-label="曾仪父母照片位置，暂时留白"></div><dl><div><dt>生日</dt><dd>未知</dd></div><div><dt>专属奴隶</dt><dd><span class="parents-servant">挡灾奴01　于耕宝</span><span class="parents-servant">挡灾奴02　杜其香</span></dd></div></dl><h4>简介</h4><p>享用曾家挡灾奴01、02号。每个月将自身灾祸出售给挡灾奴，收取钱财并换取自己平安。将自身灾祸赐予挡灾奴。</p></section>'+servantProfileHtml(state,accountClient.profile)+disasterServantsHtml()+'<section><h3>礼仪照片');
   content.innerHTML = (page==='家规'?'':heading) + body;
+  if(page==='档案')archiveFoldouts();
+  if(page==='家规'){const fold=content.querySelector('[data-fold="rules-contract"]');if(fold)bindFoldout(fold,'rules-contract');}
   if(['今日','档案'].includes(page))unmountDaysMatter=mountDaysMatter(content,{getState:()=>state,commit,notify,getAccount:()=>accountClient.profile});
   if(page==='任务')prepareTaskShares();
   if(page==='家规')unmountIdentity=mountIdentity(content,{getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
@@ -186,19 +191,19 @@ function render() {
     const form=content.querySelector('form[data-form="settings"]');
     for(const kind of ['morning','evening'])form.querySelector(`[name="${kind}"]`).closest('label').remove();
     form.insertAdjacentHTML('afterbegin',RITUAL_KINDS.map(kind=>`<label>${ritualNames[kind]}提醒时间（可留空）<input name="${kind}" type="time" value="${escape(state.settings[kind])}"></label>`).join(''));
-    if(!staticHosting)content.insertAdjacentHTML('beforeend','<section><h3>绿联 NAS 相册</h3><p id="nas-status">正在检查连接配置…</p><p>照片保存在独立目录“日课请安”。NAS 未接通时，拍照仍可打卡，照片标为待同步。</p><form data-form="nas-connect"><label>本机上传服务连接密钥<input name="token" type="password" autocomplete="off" required></label><button>连接上传服务</button></form><p class="muted">这是本机服务密钥，不是 NAS 账户密码；仅保留在此浏览器会话中。</p><button data-action="sync-photos">补传待同步照片</button></section>');
+    if(!staticHosting)content.insertAdjacentHTML('beforeend','<section><h3>绿联 服务器 相册</h3><p id="nas-status">正在检查连接配置…</p><p>照片保存在独立目录“日课请安”。服务器 未接通时，拍照仍可打卡，照片标为待同步。</p><form data-form="nas-connect"><label>本机上传服务连接密钥<input name="token" type="password" autocomplete="off" required></label><button>连接上传服务</button></form><p class="muted">这是本机服务密钥，不是 服务器 账户密码；仅保留在此浏览器会话中。</p><button data-action="sync-photos">补传待同步照片</button></section>');
     offlineStatus();nasStatus();
-    content.insertAdjacentHTML('beforeend','<section><h3>关闭后的提醒</h3><p id="push-status">正在检查自建发送服务…</p><button data-action="enable-push" disabled>开启后台提醒</button><button data-action="test-push" disabled>发送测试提醒</button><button data-action="stop-push" disabled>停止此设备提醒</button><p class="muted">锁屏仅显示“日课”。系统权限、网络和专注模式可能影响送达，不保证精确准时。仅使用 NAS/Windows 自建发送服务。</p></section>');
+    content.insertAdjacentHTML('beforeend','<section><h3>关闭后的提醒</h3><p id="push-status">正在检查自建发送服务…</p><button data-action="enable-push" disabled>开启后台提醒</button><button data-action="test-push" disabled>发送测试提醒</button><button data-action="stop-push" disabled>停止此设备提醒</button><p class="muted">锁屏仅显示“日课”。系统权限、网络和专注模式可能影响送达，不保证精确准时。仅使用 服务器/Windows 自建发送服务。</p></section>');
     paintPushStatus();
   }
   if(page==='档案')renderPhotoAlbum();
   if(page==='档案'){
-    content.insertAdjacentHTML('beforeend','<section><h3>微信汇总截图 · NAS 月归档</h3><p>四项礼仪完成后自动保存。目录：日课分享截图 / 年-月 / 年-月-日.png。每日保留最新一份，NAS 离线时留在本机待补传。</p><p>文字备份不含照片或汇总截图。外网访问需在 NAS 单独启用带密码的目录分享，不会自动公开。</p><button data-action="sync-media">补传照片与汇总截图</button><div id="report-archive"></div></section>');
+    content.insertAdjacentHTML('beforeend','<section><h3>微信汇总截图 · 服务器 月归档</h3><p>四项礼仪完成后自动保存。目录：日课分享截图 / 年-月 / 年-月-日.png。每日保留最新一份，服务器 离线时留在本机待补传。</p><p>文字备份不含照片或汇总截图。外网访问需在 服务器 单独启用带密码的目录分享，不会自动公开。</p><button data-action="sync-media">补传照片与汇总截图</button><div id="report-archive"></div></section>');
     renderReportArchive();
     if(staticHosting){
       const section=content.querySelector('#report-archive').closest('section');
       section.querySelector('h3').textContent='微信汇总截图 · 本机保存';
-      section.querySelectorAll('p')[0].textContent='四项礼仪完成后保存到本机，每日保留最新一份。可单独下载、再自行备份到 NAS。';
+      section.querySelectorAll('p')[0].textContent='四项礼仪完成后保存到本机，每日保留最新一份。可单独下载、再自行备份到 服务器。';
     }
   }
   if(staticHosting)for(const control of content.querySelectorAll('[data-action="sync-photos"],[data-action="sync-media"],[data-action="sync-photo"]'))control.remove();
@@ -224,10 +229,10 @@ function renderRitual() {
   content.querySelector('.eyebrow').textContent=`${date} · ${state.settings[kind]||'提醒时间未设置'}`;
   {
     content.querySelector('.ritual-detail>p').textContent=done?'今日礼仪已完成。':'先完成请安，再拍照打卡，最后长按确认。';
-    content.lastElementChild.textContent=staticHosting?'请安记录先保存在手机，回家后连同照片自动同步账号历史。':'请安记录留在本机，照片可同步至你的 NAS。';
+    content.lastElementChild.textContent=staticHosting?'请安记录先保存在手机，回家后连同照片自动同步账号历史。':'请安记录留在本机，照片可同步至你的 服务器。';
     content.querySelector('.ritual-detail').insertAdjacentHTML('beforeend',`<div class="ritual-instruction"><p>${escape(ritualInstruction(kind))}</p><blockquote>${escape(done?(evidence.phrase||saved):ritualGreeting(kind,date))}</blockquote>${done?`<p>完成时间：${escape(evidence.completedTime||'时间未记录（旧数据）')}</p>`:''}<small>请自行朗读与完成；应用不录音，也不自动判断动作。</small></div>`);
     const photoPanel=document.createElement('section');photoPanel.className='photo-checkin';
-    photoPanel.innerHTML=`<h3>拍照打卡</h3><p id="photo-status" role="status">${photoStatus(currentPhoto)}</p><div id="photo-preview"></div>${!done?`<video id="ritual-camera" autoplay playsinline muted hidden aria-label="实时相机画面"></video><button data-action="start-camera" ${state.settings.paused?'disabled':''}>${currentPhoto?'重新拍照':'打开相机'}</button><button data-action="take-photo" hidden>拍下并预览</button><button data-action="stop-camera" hidden>取消拍摄</button>`:''}${!done&&currentPhoto?'<button data-action="discard-photo">取消使用这张照片</button>':''}${currentPhoto?`<button data-action="download-photo" data-id="${escape(currentPhoto.id)}">下载照片</button>${!staticHosting&&usedRitualPhoto(currentPhoto)?`<button data-action="sync-photo" data-id="${escape(currentPhoto.id)}">${currentPhoto.status==='uploaded'?'检查同步状态':'上传至 NAS'}</button>`:''}`:''}<p class="muted">${done?'旧记录无照片时不会自动补造。':'拍照后先预览，长按完成礼仪才保存；取消或离开不会保存未使用照片。'} ${staticHosting?'完成礼仪后照片才保存到手机，回家自动备份至 NAS。':'NAS 上传状态以实际结果为准。'}</p>`;
+    photoPanel.innerHTML=`<h3>拍照打卡</h3><p id="photo-status" role="status">${photoStatus(currentPhoto)}</p><div id="photo-preview"></div>${!done?`<video id="ritual-camera" autoplay playsinline muted hidden aria-label="实时相机画面"></video><button data-action="start-camera" ${state.settings.paused?'disabled':''}>${currentPhoto?'重新拍照':'打开相机'}</button><button data-action="take-photo" hidden>拍下并预览</button><button data-action="stop-camera" hidden>取消拍摄</button>`:''}${!done&&currentPhoto?'<button data-action="discard-photo">取消使用这张照片</button>':''}${currentPhoto?`<button data-action="download-photo" data-id="${escape(currentPhoto.id)}">下载照片</button>${!staticHosting&&usedRitualPhoto(currentPhoto)?`<button data-action="sync-photo" data-id="${escape(currentPhoto.id)}">${currentPhoto.status==='uploaded'?'检查同步状态':'上传至 服务器'}</button>`:''}`:''}<p class="muted">${done?'旧记录无照片时不会自动补造。':'拍照后先预览，长按完成礼仪才保存；取消或离开不会保存未使用照片。'} ${staticHosting?'完成礼仪后照片才保存到手机，回家自动备份至 服务器。':'服务器 上传状态以实际结果为准。'}</p>`;
     const note=content.querySelector('.ritual-note');
     if(note)note.replaceWith(photoPanel);else content.querySelector('.ritual-action').before(photoPanel);
     if(currentPhoto){const image=document.createElement('img');image.alt='本次请安打卡照片';const url=URL.createObjectURL(currentPhoto.blob);photoUrls.push(url);image.src=url;photoPanel.querySelector('#photo-preview').append(image);}
@@ -281,7 +286,7 @@ function photoStatus(photo) {
   if(!photo)return photoLoading?'正在读取本机照片…':'尚未拍照 · 完成按钮未解锁';
   if(!usedRitualPhoto(photo))return '照片仅供预览 · 完成礼仪后才保存';
   if(staticHosting)return mediaStatus(photo,true);
-  return photo.status==='uploaded'?'照片已保存到 NAS · 日课请安':'照片已保存在本机 · NAS 待同步';
+  return photo.status==='uploaded'?'照片已保存到 服务器 · 日课请安':'照片已保存在本机 · 服务器 待同步';
 }
 async function startCamera() {
   if(state.settings.paused)throw Error('日课已暂停');
@@ -315,11 +320,11 @@ async function takePhoto() {
     if(ritualKind===kind && page==='今日'&&!hidden)render();
     notify('照片已保存到本机，可以长按完成礼仪');
     if(staticHosting)lanBackup.run();
-    if(nasToken)syncSavedPhoto(photo).catch(error=>notify(`照片已保留，NAS 待同步：${error.message}`));
+    if(nasToken)syncSavedPhoto(photo).catch(error=>notify(`照片已保留，服务器 待同步：${error.message}`));
   }finally{photoCapturing=false;}
 }
 async function syncSavedPhoto(photo) {
-  if(staticHosting)throw Error('网页版仅保存本机图片，不提供 NAS 上传服务');
+  if(staticHosting)throw Error('网页版仅保存本机图片，不提供 服务器 上传服务');
   if(syncingPhotos.has(photo.id))return false;
   syncingPhotos.add(photo.id);
   try{
@@ -327,23 +332,23 @@ async function syncSavedPhoto(photo) {
     if(!updated)return false;
     if(currentPhoto?.id===updated.id)currentPhoto=updated;
     const label=document.querySelector('#photo-status');if(label)label.textContent=photoStatus(currentPhoto);
-    notify('照片已上传至 NAS 的“日课请安”目录');
+    notify('照片已上传至 服务器 的“日课请安”目录');
     if(page==='档案'&&!hidden)renderPhotoAlbum();
     return true;
   }finally{syncingPhotos.delete(photo.id);}
 }
 async function syncPendingPhotos() {
-  if(staticHosting)throw Error('网页版不提供 NAS 上传服务');
+  if(staticHosting)throw Error('网页版不提供 服务器 上传服务');
   if(!nasToken)throw Error('请先在隐私页填写本机上传服务连接密钥');
   const photos=(await listPhotos()).filter(photo=>usedRitualPhoto(photo)&&photo.status!=='uploaded');
   if(!photos.length){notify('没有待同步照片');return;}
   let uploaded=0;
   for(const photo of photos){try{if(await syncSavedPhoto(photo))uploaded++;}catch(error){notify(`已同步 ${uploaded} 张，其余保留在本机：${error.message}`);return;}}
-  notify(`已同步 ${uploaded} 张照片至 NAS`);
+  notify(`已同步 ${uploaded} 张照片至 服务器`);
 }
 async function paintArchiveStatus(date=dayKey()){
   const element=content.querySelector('#archive-status');if(!element)return;
-  try{const report=await getReport(date);if(!element.isConnected)return;element.textContent=report?`${mediaStatus(report,staticHosting)} · ${date.slice(0,7)}/${date}.png${report.error?` · ${report.error}`:''}`:staticHosting?'完成四项礼仪后自动保存汇总到本机。':'完成四项礼仪后自动归档到 NAS。';}catch{if(element.isConnected)element.textContent='本机汇总图片读取失败，请检查存储空间。';}
+  try{const report=await getReport(date);if(!element.isConnected)return;element.textContent=report?`${mediaStatus(report,staticHosting)} · ${date.slice(0,7)}/${date}.png${report.error?` · ${report.error}`:''}`:staticHosting?'完成四项礼仪后自动保存汇总到本机。':'完成四项礼仪后自动归档到 服务器。';}catch{if(element.isConnected)element.textContent='本机汇总图片读取失败，请检查存储空间。';}
 }
 async function renderReportArchive(){
   const element=content.querySelector('#report-archive');if(!element)return;
@@ -368,7 +373,7 @@ async function retryMedia(){
 }
 async function nasStatus() {
   const element=document.querySelector('#nas-status');if(!element)return;
-  if(staticHosting){element.textContent='网页版不提供 NAS 上传；图片仅保存在本机。';return;}
+  if(staticHosting){element.textContent='网页版不提供 服务器 上传；图片仅保存在本机。';return;}
   try{
     const response=await fetch('./api/nas/status',{signal:AbortSignal.timeout(5000)});
     if(!response.ok)throw Error();
@@ -388,7 +393,7 @@ async function renderPhotoAlbum() {
     if(!photos.length){element.textContent='尚无拍照打卡记录。';return;}
     for(const photo of photos){
       const item=document.createElement('article');
-      item.innerHTML=`<small>${escape(photo.date)} · ${escape(ritualNames[photo.kind]||'旧照片')} · ${ritualEvidence(state.days[photo.date],photo.kind).photoId===photo.id?'已完成礼仪的照片':'拍摄记录'}</small><p>${escape(photoStatus(photo))}</p><button data-action="download-photo" data-id="${escape(photo.id)}">下载照片</button>${!staticHosting&&photo.status!=='uploaded'?`<button data-action="sync-photo" data-id="${escape(photo.id)}">上传至 NAS</button>`:''}`;
+      item.innerHTML=`<small>${escape(photo.date)} · ${escape(ritualNames[photo.kind]||'旧照片')} · ${ritualEvidence(state.days[photo.date],photo.kind).photoId===photo.id?'已完成礼仪的照片':'拍摄记录'}</small><p>${escape(photoStatus(photo))}</p><button data-action="download-photo" data-id="${escape(photo.id)}">下载照片</button>${!staticHosting&&photo.status!=='uploaded'?`<button data-action="sync-photo" data-id="${escape(photo.id)}">上传至 服务器</button>`:''}`;
       const image=document.createElement('img');image.alt=`${photo.date} 请安打卡照片`;image.loading='lazy';const url=URL.createObjectURL(photo.blob);photoUrls.push(url);image.src=url;item.prepend(image);element.append(item);
     }
   }catch{if(element.isConnected)element.textContent='照片读取失败，请检查本机存储。';}
@@ -399,7 +404,7 @@ async function prepareTaskShares(){
 async function renderProfilePortrait(){
  const holder=content.querySelector('#profile-portrait');if(!holder)return;let displayed=false;
  const show=blob=>{if(content.querySelector('#profile-portrait')!==holder)return;const image=document.createElement('img');image.alt='曾仪的档案照片';image.className='profile-portrait';const url=URL.createObjectURL(blob);photoUrls.push(url);image.src=url;holder.replaceChildren(image);displayed=true;};
- try{const cached=await getSubscriptionMedia('master-profile-photo');if(cached?.blob)show(cached.blob);if(!staticHosting||!lanBackup.enabled||!navigator.onLine){if(!displayed)holder.innerHTML='<p class="muted">连接家庭 Wi-Fi 后自动加载主子照片，加载后可离线查看。</p>';return;}const blob=await lanBackup.readProfilePhoto();await saveSubscriptionMedia({id:'master-profile-photo',role:'profile-photo',blob});show(blob);}catch{if(!displayed&&content.querySelector('#profile-portrait')===holder)holder.innerHTML='<p class="muted">暂未连通家庭 NAS，连接家庭 Wi-Fi 后可加载主子照片。</p>';}
+ try{const cached=await getSubscriptionMedia('master-profile-photo');if(cached?.blob)show(cached.blob);if(!staticHosting||!lanBackup.enabled||!navigator.onLine){if(!displayed)holder.innerHTML='<p class="muted">连接家庭 Wi-Fi 后自动加载主子照片，加载后可离线查看。</p>';return;}const blob=await lanBackup.readProfilePhoto();await saveSubscriptionMedia({id:'master-profile-photo',role:'profile-photo',blob});show(blob);}catch{if(!displayed&&content.querySelector('#profile-portrait')===holder)holder.innerHTML='<p class="muted">暂未连通家庭 服务器，连接家庭 Wi-Fi 后可加载主子照片。</p>';}
 }
 async function renderShoeArchive(){
   const element=content.querySelector('#shoe-archive');if(!element)return;
@@ -445,7 +450,7 @@ function prepareReport() {
   const snapshot=JSON.stringify(state.days[report.date]||{});const epoch=reportGeneration;
   const pending=buildShareCard(report,getPhoto).then(prepared=>{
     if(epoch===reportGeneration && JSON.stringify(state.days[report.date]||{})===snapshot && report.allComplete){
-      archiveReport(prepared,nasToken,{upload:!staticHosting}).catch(error=>notify(staticHosting?`本机汇总保存未完成：${error.message}`:`汇总截图已生成，NAS 待同步：${error.message}`)).finally(()=>{paintArchiveStatus(report.date);renderReportArchive();});
+      archiveReport(prepared,nasToken,{upload:!staticHosting}).catch(error=>notify(staticHosting?`本机汇总保存未完成：${error.message}`:`汇总截图已生成，服务器 待同步：${error.message}`)).finally(()=>{paintArchiveStatus(report.date);renderReportArchive();});
     }
     if(reportCacheKey()!==key)return null;
     preparedShare=prepared;preparedKey=key;paintPreparedReport(prepared);return prepared;
@@ -497,7 +502,7 @@ document.addEventListener('click',async event=>{
     if(action==='test-push'){await pushClient.test();notify('推送通道已接受测试，请在手机锁屏核对；不代表已显示');return;}
     if(action==='stop-push'){await pushClient.stop();await paintPushStatus();notify('已停止此设备的后台提醒');return;}
     if(staticHosting&&['sync-photo','sync-photos','sync-media','lan-retry'].includes(action)){await lanBackup.retry();return;}
-    if(action==='lan-disconnect'){lanBackup.disconnect();render();notify('已停止回家自动备份，本机与 NAS 照片保留');return;}
+    if(action==='lan-disconnect'){lanBackup.disconnect();render();notify('已停止回家自动备份，本机与 服务器 照片保留');return;}
     if(action==='open-report'){ritualKind=null;reportOpen=true;if(location.hash)history.replaceState(null,'',location.pathname+location.search);render();return;}
     if(action==='close-report'){reportOpen=false;render();return;}
     if(action==='share-day'){
@@ -534,8 +539,8 @@ document.addEventListener('click',async event=>{
     if(action==='complete') commit(draft=>completeTask(draft,button.dataset.id));
     if(action==='delete-task'){
       const task=state.tasks.find(t=>t.id===button.dataset.id);if(!task)throw Error('任务不存在或已删除');
-      if(!confirm('确定删除“'+task.title+'”及本机关联照片、截图？\nNAS 备份和已获得积分保留。'))return;
-      let media;commit(draft=>{media=deleteTask(draft,task.id);});await deleteTaskMedia(media);notify('任务已删除，NAS 备份保留');return;
+      if(!confirm('确定删除“'+task.title+'”及本机关联照片、截图？\n服务器 备份和已获得积分保留。'))return;
+      let media;commit(draft=>{media=deleteTask(draft,task.id);});await deleteTaskMedia(media);notify('任务已删除，服务器 备份保留');return;
     }
     if(action==='archive') commit(draft=>{draft.tasks.find(task=>task.id===button.dataset.id).status='archived';});
     if(action==='edit') {
@@ -546,14 +551,14 @@ document.addEventListener('click',async event=>{
     if(action==='raw') download(localStorage.getItem('zeng-daily-v1')??'null','daily-raw.json');
     if(action==='persist') notify(navigator.storage?.persist ? (await navigator.storage.persist()?'已允许保留；仍请导出备份':'浏览器未允许保留；请定期导出备份'):'此浏览器不支持请求保留存储');
     if(action==='update') await checkForUpdate();
-    if(action==='clear' && prompt('输入 清空 确认删除全部本机记录、礼仪及洗鞋照片、洗鞋截图、汇总截图、订阅协议和本人签名。请先分别备份文字和图片。NAS 上的文件不会删除。')==='清空') {let pushStopped=true;try{await pushClient.stop();}catch{pushStopped=false;}reportGeneration++;resetReportQueue();lanBackup.disconnect();await clearMedia();writeState(initialState());state=initialState();currentPhoto=null;photoKey='';preparedShare=null;preparedKey='';storageFailed=false;render();notify(pushStopped?'本机数据已清空；NAS 文件保留':'本机数据已清空；后台停用未同步，请恢复连接后停止设备提醒');}
+    if(action==='clear' && prompt('输入 清空 确认删除全部本机记录、礼仪及洗鞋照片、洗鞋截图、汇总截图、订阅协议和本人签名。请先分别备份文字和图片。服务器 上的文件不会删除。')==='清空') {let pushStopped=true;try{await pushClient.stop();}catch{pushStopped=false;}reportGeneration++;resetReportQueue();lanBackup.disconnect();await clearMedia();writeState(initialState());state=initialState();currentPhoto=null;photoKey='';preparedShare=null;preparedKey='';storageFailed=false;render();notify(pushStopped?'本机数据已清空；服务器 文件保留':'本机数据已清空；后台停用未同步，请恢复连接后停止设备提醒');}
   } catch(error) {notify(error.message);}
 });
 document.addEventListener('submit',event=>{
   event.preventDefault();const form=event.target;const data=new FormData(form);const value=name=>String(data.get(name)??'');
   if(form.dataset.form==='new-task'){try{let id;const type=value('type');commit(draft=>{id=createTask(draft,{type,title:value('title'),note:value('note').trim(),plannedStart:value('plannedStart'),plannedEnd:value('plannedEnd'),publisher:value('publisher'),executor:value('executor')});});location.hash=(type==='shoe'?'shoes/':'task/')+id;}catch(error){notify(error.message);}return;}
   if(form.dataset.form==='nas-connect'){
-    if(staticHosting){notify('网页版不收集 NAS 连接密钥');return;}
+    if(staticHosting){notify('网页版不收集 服务器 连接密钥');return;}
     nasToken=value('token');
     try{sessionStorage.setItem('daily-nas-token',nasToken);}catch{}
     form.reset();notify('连接密钥已保留在当前会话，实际连接将在上传时验证');nasStatus();retryMedia();return;

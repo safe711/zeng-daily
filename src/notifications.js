@@ -5,7 +5,7 @@ export function createNotifier(element,{setTimer=setTimeout,clearTimer=clearTime
     const current=++revision;
     if(timer!==null)clearTimer(timer);
     timer=null;
-    element.textContent=text;
+    element.textContent=String(text??'').replaceAll('NAS','服务器');
     if(text)timer=setTimer(()=>{
       if(current!==revision)return;
       element.textContent='';
