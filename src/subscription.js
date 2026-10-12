@@ -33,6 +33,7 @@ export function validateSubscription(subscription){
   const ids=new Set();let pending=0;
   for(const payment of subscription.payments){
     if(!payment||!identifierPattern.test(payment.id)||ids.has(payment.id)||!isDate(payment.paidDate)||!isStamp(payment.recordedAt)||!Number.isSafeInteger(payment.amountCents)||payment.amountCents<=0||payment.amountCents>100_000_000||!isText(payment.payee)||!isText(payment.note)||!identifierPattern.test(payment.contractId)||!fingerprintPattern.test(payment.contractFingerprint)||!isDate(payment.periodStart)||!isDate(payment.periodEnd)||payment.periodStart<payment.paidDate||payment.periodEnd!==nextMonth(payment.periodStart,payment.anchorDay)||!Number.isInteger(payment.anchorDay)||payment.anchorDay<1||payment.anchorDay>31||!['pending-signature','signed'].includes(payment.status)||payment.verification!=='self-reported'||payment.agreementVersion!==AGREEMENT_VERSION||payment.agreementText!==subscriptionAgreement(payment.amountCents,payment.payee))throw Error('付款记录无效');
+    if(payment.disasterMemberIds!==undefined&&(!Array.isArray(payment.disasterMemberIds)||payment.disasterMemberIds.length!==2||new Set(payment.disasterMemberIds).size!==2||payment.disasterMemberIds.some(id=>!['ZENG-DZ-001','ZENG-DZ-002'].includes(id))))throw Error('请选择两位挡灾奴');
     if(payment.status==='signed'){
       if(!identifierPattern.test(payment.signatureId)||!fingerprintPattern.test(payment.signatureFingerprint)||!isStamp(payment.signedAt)||payment.signedAt<payment.recordedAt||payment.confirmation!=='self-only-v1')throw Error('签字记录无效');
     }else{pending++;if(payment.signatureId!==''||payment.signatureFingerprint!==''||payment.signedAt!==''||payment.confirmation!=='')throw Error('未签字记录无效');}
@@ -44,7 +45,7 @@ export function validateSubscription(subscription){
 export function configureSubscription(subscription,{amount,payee}){
   subscription.plan={amountCents:parseAmount(amount),payee:String(payee).trim()};validateSubscription(subscription);
 }
-export function recordPayment(subscription,{id,paidDate,note='',now=new Date()},today){
+export function recordPayment(subscription,{id,paidDate,note='',disasterMemberIds,now=new Date()},today){
   validateSubscription(subscription);
   if(!isDate(today)||!isDate(paidDate)||paidDate>today)throw Error('请选择不晚于今天的实际付款日期');
   if(subscription.stopped)throw Error('请先恢复续费提示');
@@ -58,6 +59,7 @@ export function recordPayment(subscription,{id,paidDate,note='',now=new Date()},
   const periodStart=continued?latest.periodEnd:paidDate;
   const anchorDay=continued?latest.anchorDay:Number(paidDate.slice(8));
   const payment={id,paidDate,note:String(note).trim(),recordedAt:now.toISOString(),amountCents:subscription.plan.amountCents,payee:subscription.plan.payee,contractId:subscription.contractId,contractFingerprint:subscription.contractFingerprint,agreementVersion:AGREEMENT_VERSION,agreementText:subscriptionAgreement(subscription.plan.amountCents,subscription.plan.payee),periodStart,periodEnd:nextMonth(periodStart,anchorDay),anchorDay,status:'pending-signature',verification:'self-reported',signatureId:'',signatureFingerprint:'',signedAt:'',confirmation:''};
+  if(disasterMemberIds!==undefined)payment.disasterMemberIds=disasterMemberIds;
   validateSubscription({...subscription,payments:[...subscription.payments,payment]});subscription.payments.push(payment);
   return payment;
 }

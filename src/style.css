@@ -236,3 +236,51 @@ nav button.has-new-review::after,.review-red-dot{content:'';position:absolute;to
 .owner-member-days .owner-day-empty{background:#24252a;border-color:#ffffff12}
 .owner-member-days .owner-day-empty .day-value strong{color:#7d7b73;font-size:30px}
 @media(max-width:340px){.owner-member-days .day-grid{gap:8px}.owner-member-days article.day-tile{padding-inline:7px}}
+
+/* Clip only the portrait; keep the crown above the circular photo. */
+.owner-portrait{position:relative;display:block;aspect-ratio:1;flex-shrink:0;overflow:visible}
+.owner-avatar-crop{position:absolute;inset:0;border-radius:50%;overflow:hidden;background:#423a2b}
+.owner-avatar-crop>img{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;object-position:50% 52%;transform:scale(2.15);transform-origin:50% 50%;border-radius:0}
+.owner-avatar-crop>.default-avatar{position:absolute;inset:14%;width:72%;height:72%}
+.owner-member>summary{min-height:104px;padding:16px!important;gap:12px!important}
+.owner-member .family-panel-body{padding:12px}
+.owner-member-days{margin-bottom:12px}
+.owner-member-days article.day-tile{height:132px;padding:10px 8px}
+.owner-day-person{gap:2px;margin-bottom:4px}
+.owner-day-name{font-size:12px}
+.owner-member-days .day-title{height:28px;max-height:28px;font-size:11px;line-height:1.3}
+.owner-member .loyalty-line{padding:12px 16px;margin:0 0 12px;border-radius:12px}
+.owner-member .calendar-month>summary{padding:12px}
+.owner-member .calendar-month-body{padding:10px}
+.owner-member .archive-fold{margin-top:10px}
+.owner-task-swipe{position:relative;overflow:hidden;border-radius:12px;margin:12px 0;background:#b84747}
+.owner-task-swipe .owner-task-row{position:relative;z-index:1;background:#202228;margin:0;transition:transform .2s ease;border-color:#ffffff18}
+.owner-task-swipe.is-delete-revealed .owner-task-row{transform:translateX(-76px)}
+.owner-task-delete{position:absolute;right:0;top:0;height:76px;width:76px;margin:0;border:0;border-radius:0;background:#b84747;color:#fff;visibility:hidden;z-index:0}
+.owner-task-swipe.is-delete-revealed .owner-task-delete{visibility:visible}
+.owner-task-divider{height:1px;border:0;background:#ffffff18;margin:26px 0 20px}
+.task-title-danger{color:#ef8585!important}
+.owner-confirm-copy{line-height:1.9;white-space:normal}
+.owner-confirm-actions{display:flex;gap:12px;margin-top:18px}
+.owner-confirm-actions button{flex:1}
+.owner-confirm-actions [data-confirm-yes]{background:#a5493f35;border-color:#be6a5b}
+.owner-task-info [data-owner-task-photos][hidden]{display:none}
+.owner-task-info [data-owner-review-photos]{width:100%;margin:8px 0}
+.disaster-title{display:flex;align-items:center;gap:10px}
+.disaster-pixel-icon{display:inline-block;width:30px;height:30px;flex-shrink:0}
+.owner-subscription summary:has(.default-avatar){display:flex;align-items:center;gap:8px}
+.owner-subscription summary>.default-avatar{width:28px;height:28px;flex:0 0 28px}
+.owner-subscription summary>span{flex:1}
+.owner-subscription summary>small{font-size:11px;white-space:nowrap}
+.disaster-period{font-size:13px;padding-bottom:12px;border-bottom:1px solid #ffffff10}
+.disaster-selection{border:1px solid #77644055;border-radius:10px;padding:12px;min-width:0;margin:14px 0}
+.disaster-selection legend{font-size:13px;color:#d1b981}
+.disaster-selection .check{font-size:13px;margin:8px 0}
+.disaster-selection input{width:auto!important;flex-shrink:0}
+.owner-archive-servant .servant-portrait{width:112px;height:112px}
+[data-owner-ritual-archive] img{width:100%;max-height:300px;object-fit:contain;border-radius:8px;cursor:pointer}
+[data-owner-ritual-archive] figcaption{color:#aaa08b;font-size:12px;margin-top:6px}
+
+.archive-fold>summary::after{content:"›"}
+
+.owner-subscription .network-offline,.subscription-introduction .network-offline{color:#eb8585}

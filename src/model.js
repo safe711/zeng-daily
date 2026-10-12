@@ -49,6 +49,7 @@ export function validateState(state) {
   const string = value => typeof value === 'string' && value.length <= 10000;
   if (!state || state.version !== 4 || !state.days || typeof state.days !== 'object' || Array.isArray(state.days)) throw Error('备份版本或结构无效');
   validateSubscription(state.subscription);
+  for(const payment of state.subscription.payments)if(payment.disasterMemberIds!==undefined&&(!Array.isArray(payment.disasterMemberIds)||payment.disasterMemberIds.length!==2||new Set(payment.disasterMemberIds).size!==2||payment.disasterMemberIds.some(id=>!['ZENG-DZ-001','ZENG-DZ-002'].includes(id))))throw Error('请选择两位挡灾奴');
   validateGifts(state);
   if(state.servantProfile!==undefined){const p=state.servantProfile;if(!p||typeof p.duties!=='string'||!p.duties.trim()||p.duties.length>1000||!(p.photoId===null||validMediaId(p.photoId)))throw Error('本人档案信息无效');}
 
