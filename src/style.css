@@ -112,3 +112,7 @@ body.is-account-login{background:radial-gradient(ellipse at 50% 0,rgba(182,154,9
 .subscription-qr .modal-content-frame>img{display:block;width:100%;max-height:55vh;object-fit:contain;border-radius:10px}.modal-content-frame>p{margin-top:8px}
 
 .modal-dismiss-shell>.modal-content-frame{text-align:left}
+
+/* Programmatically focused page containers never show a screen-sized focus ring. */
+#content:focus,.content-lock:focus{outline:none}
+.family-contract #identity-contract{margin-top:0}

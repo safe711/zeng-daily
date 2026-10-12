@@ -26,3 +26,5 @@ export function mountIdentity(host,{getState,commit,upload,notify}){
  const stop=e=>e.stopPropagation();root.addEventListener('click',stop);root.addEventListener('submit',stop);
  return ()=>{disposed=true;pickerOpen=false;editing=false;clearView();root.removeEventListener('click',stop);root.removeEventListener('submit',stop);};
 }
+
+export function identityModuleHtml(){return '<details class="family-panel family-contract" data-fold="identity-contract"><summary><span><small>IDENTITY & PLEDGE</small><strong>奴才契约</strong><em>宣读视频 · 手写签名 · 签约记录</em></span></summary><div class="family-panel-body"><section id="identity-contract"></section></div></details>';}
