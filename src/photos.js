@@ -1,5 +1,7 @@
 import {validDate,RITUAL_KINDS} from './model.js';
 let database;
+let mediaAccount=null;
+export function setMediaAccount(id){if(id!==null&&!/^ZENG-DS-\d{3}$/.test(id))throw Error('账号编号无效');if(id===mediaAccount)return;resetPhotoUploads();const prior=database;database=undefined;mediaAccount=id;prior?.then(db=>db.close()).catch(()=>{});}
 let photoGeneration=0;
 export function resetPhotoUploads(){photoGeneration++;}
 export const mediaGeneration=()=>photoGeneration;
@@ -10,7 +12,7 @@ export function photoPath(photo){
 }
 function openDatabase() {
   if(!database)database=new Promise((resolve,reject)=>{
-    const request=indexedDB.open('daily-photos',4);
+    const request=indexedDB.open(mediaAccount?'daily-photos:'+mediaAccount:'daily-photos',4);
     request.onupgradeneeded=()=>{
       if(!request.result.objectStoreNames.contains('photos'))request.result.createObjectStore('photos',{keyPath:'id'});
       if(!request.result.objectStoreNames.contains('reports'))request.result.createObjectStore('reports',{keyPath:'date'});
@@ -30,7 +32,7 @@ async function operation(mode,action,storeName='photos',epoch) {
   return new Promise((resolve,reject)=>{
     const transaction=db.transaction(storeName,mode);
     const request=action(transaction.objectStore(storeName));
-    transaction.oncomplete=()=>resolve(request.result);
+    transaction.oncomplete=()=>{if(mode==='readwrite')globalThis.dispatchEvent?.(new Event('daily-media-saved'));resolve(request.result);};
     transaction.onerror=()=>reject(Error('照片保存失败，可能存储空间不足'));
     transaction.onabort=()=>reject(Error('照片存储操作未完成'));
   });
@@ -109,3 +111,6 @@ export async function deleteTaskMedia({taskId,recordIds,shoePhotoIds,taskMediaId
   tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(Error('任务已删除，本机关联图片清理未完成；NAS 备份保留'));
  });
 }
+
+export async function exportMedia(){const names=['photos','reports','subscriptionMedia','shoePhotos','shoeReports'];const assets=[];for(const store of names){for(const a of await operation('readonly',s=>s.getAll(),store)){const {blob,...meta}=a;if(blob)assets.push({store,meta,blob});}}return assets;}
+export async function importMedia(assets){for(const a of assets){if(!['photos','reports','subscriptionMedia','shoePhotos','shoeReports'].includes(a.store)||!a.blob)throw Error('媒体恢复格式无效');await operation('readwrite',s=>s.put({...a.meta,blob:a.blob}),a.store);}}

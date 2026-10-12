@@ -11,7 +11,7 @@ export function validateLanUrl(value){
   if(url.protocol!=='https:'||!privateIp||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('请输入家庭 NAS 的 HTTPS 局域网地址');
   return url.origin;
 }
-export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},storage=globalThis.localStorage,fetcher=globalThis.fetch,online=()=>globalThis.navigator?.onLine!==false,photos=listPhotos,reports=listReports,shoePhotos=listShoePhotos,shoeReports=listShoeReports,sendPhoto=syncPhoto,sendReports=syncPendingReports,sendShoes=syncPendingShoeMedia}={}){
+export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},getAccountToken=null,storage=globalThis.localStorage,fetcher=globalThis.fetch,online=()=>globalThis.navigator?.onLine!==false,photos=listPhotos,reports=listReports,shoePhotos=listShoePhotos,shoeReports=listShoeReports,sendPhoto=syncPhoto,sendReports=syncPendingReports,sendShoes=syncPendingShoeMedia}={}){
   let config=null,busy=false,pairing=null,lastStatus='正在等待家庭 NAS 自动连接';
   let disabled=false;try{disabled=storage.getItem('daily-lan-disabled')==='true';}catch{}
   try{const saved=JSON.parse(storage.getItem('daily-lan-backup'));if(saved?.key&&saved.key.length>=32&&saved.key.length<=256)config={url:validateLanUrl(saved.url),key:saved.key};}catch{}
@@ -24,6 +24,8 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},stora
   }
   function disconnect(){storage.removeItem('daily-lan-backup');storage.setItem('daily-lan-disabled','true');disabled=true;config=null;}
   async function connect(){
+    if(getAccountToken){const accountToken=getAccountToken();if(accountToken)return {url:'https://192.168.1.20:4180',key:accountToken,account:true};throw Error('请先登录曾家家奴账号');}
+    /* Legacy device pairing retained only for older configuration compatibility. */
     if(config)return config;if(disabled||!online())throw Error('请在家里的 Wi-Fi 打开软件以连接 NAS');
     if(pairing)return pairing;
     pairing=(async()=>{
@@ -56,13 +58,13 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},stora
       paintStatus('已连接家庭 NAS，已开启自动备份');
       if(!pending.length&&!other){if(manual)notify('NAS 已连接，没有待上传的照片或截图');return;}
       const upload=(path,options={})=>{
-        if(config!==connection)throw Error('NAS 连接已变更');
+        if(!connection.account&&config!==connection)throw Error('NAS 连接已变更');
         if(!/^\.\/api\/nas\/(photos|reports|shoes\/photos|shoes\/reports|tasks\/photos|tasks\/reports)\?/.test(path))throw Error('上传路径无效');
         return fetcher(connection.url+path.slice(1),{...options,credentials:'omit',redirect:'error',headers:{...options.headers,Authorization:'Bearer '+connection.key}});
       };
       let uploaded=0,failed=0;
-      for(const photo of pending){if(config!==connection)return;try{if(await sendPhoto(photo,connection.key,{fetcher:upload}))uploaded++;}catch{failed++;}}
-      if(config!==connection)return;
+      for(const photo of pending){if(!connection.account&&config!==connection)return;try{if(await sendPhoto(photo,connection.key,{fetcher:upload}))uploaded++;}catch{failed++;}}
+      if(!connection.account&&config!==connection)return;
       const summary=await sendReports(connection.key,{fetcher:upload});
       const shoes=await sendShoes(connection.key,{fetcher:upload,records});
       const taskMedia=tasks().length?await syncTaskMedia(tasks(),{fetcher:upload,key:connection.key}):{uploaded:0,failed:0};
@@ -76,7 +78,7 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},stora
     const connection=await connect();
     let response;
     try{response=await fetcher(connection.url+'/api/private/contract',{credentials:'omit',redirect:'error',cache:'no-store',headers:{Authorization:'Bearer '+connection.key},signal:AbortSignal.timeout(15000)});}catch{throw Error('手机未能访问 NAS 契约，请在隐私页打开连接检测页');}
-    if(config!==connection)throw Error('NAS 连接已变更，请重试');
+    if(!connection.account&&config!==connection)throw Error('NAS 连接已变更，请重试');
     if(response.status===401)throw Error('此设备的 NAS 连接已失效，请联系管理者重新连接');
     if(!response.ok)throw Error('NAS 契约原件暂时无法读取');
     if(Number(response.headers.get('content-length'))>8000000)throw Error('契约原件过大');
@@ -86,7 +88,7 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},stora
   }
   async function readProfilePhoto(){
     const connection=await connect();const response=await fetcher(connection.url+'/api/private/profile-photo',{credentials:'omit',redirect:'error',cache:'no-store',headers:{Authorization:'Bearer '+connection.key},signal:AbortSignal.timeout(15000)});
-    if(config!==connection)throw Error('NAS 连接已变更');if(!response.ok)throw Error('档案照片暂时无法读取');
+    if(!connection.account&&config!==connection)throw Error('NAS 连接已变更');if(!response.ok)throw Error('档案照片暂时无法读取');
     if(response.headers.get('content-type')!=='image/jpeg'||Number(response.headers.get('content-length'))>8000000)throw Error('档案照片格式无效');
     const blob=await response.blob(),bytes=new Uint8Array(await blob.slice(0,3).arrayBuffer());if(!blob.size||blob.size>8000000||bytes[0]!==255||bytes[1]!==216||bytes[2]!==255)throw Error('档案照片内容无效');return blob;
   }
@@ -96,12 +98,12 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},stora
     const videoHash=await digest(video),signatureHash=await digest(signature);
     const metadata=new Blob([JSON.stringify({...record,videoHash,signatureHash})],{type:'application/json'});let receipt;
     for(const [kind,blob,fingerprint] of [['video',video,videoHash],['signature',signature,signatureHash],['record',metadata,await digest(metadata)]]){
-      if(config!==connection)throw Error('NAS 连接已变更');
+      if(!connection.account&&config!==connection)throw Error('NAS 连接已变更');
       const response=await fetcher(connection.url+'/api/private/identity?id='+record.id+'&kind='+kind,{method:'POST',credentials:'omit',redirect:'error',headers:{Authorization:'Bearer '+connection.key,'Content-Type':blob.type,'X-Identity-Fingerprint':fingerprint},body:blob,signal:AbortSignal.timeout(180000)});
       receipt=await response.json();if(!response.ok||!receipt.uploaded||(kind!=='record'&&receipt.fingerprint!==fingerprint))throw Error(receipt.error||'NAS 签约资料未保存完整');
     }
     return {signedAt:receipt.signedAt,videoHash:receipt.videoHash,signatureHash:receipt.signatureHash,nasPath:receipt.path};
   }
-  function settingsHtml(){return `<section><h3>回家自动备份到 NAS</h3><p>在家里的 Wi-Fi 打开软件，会自动连接 NAS 并补传照片、汇总截图和洗鞋记录。无需填写地址或密钥。外出时保留待上传图片，下次回家补传。</p><p>若浏览器提示访问本地网络，请选择允许。连接凭证只保存在本机。</p><p data-lan-status>${disabled?'自动备份已停止':lastStatus.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}</p><button data-action="lan-retry">立即连接并补传</button><button data-action="lan-disconnect">停止自动备份</button><p><a href="https://192.168.1.20:4180/connection-check" target="_blank" rel="noopener noreferrer">打开连接检测页</a></p><p><button type="button" data-action="certificate-guide">证书安装帮助</button></p></section>`;}
+  function settingsHtml(){return `<section><h3>回家自动备份到 NAS</h3><p>在家里的 Wi-Fi 打开软件，会自动连接 NAS 并补传照片、汇总截图和洗鞋记录。无需填写地址或密钥。外出时保留待上传图片，下次回家补传。</p><p>若浏览器提示访问本地网络，请选择允许。连接凭证只保存在本机。</p><p data-lan-status>${disabled?'自动备份已停止':(getAccountToken?.()&&lastStatus==='请先登录曾家家奴账号'?'账号已登录，有待传照片时自动备份':lastStatus).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}</p><button data-action="lan-retry">立即连接并补传</button><button data-action="lan-disconnect">停止自动备份</button><p><a href="https://192.168.1.20:4180/connection-check" target="_blank" rel="noopener noreferrer">打开连接检测页</a></p><p><button type="button" data-action="certificate-guide">证书安装帮助</button></p></section>`;}
   return {save,disconnect,connect,retry,run,uploadIdentity,readContract,readProfilePhoto,settingsHtml,get enabled(){return !disabled;},get configured(){return !!config;}};
 }

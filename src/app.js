@@ -1,3 +1,4 @@
+import {createAccountClient} from './accounts.js';
 import {mountIdentity,identityKeepsView} from './identity.js';
 import {dayKey,initialState,parseBackup,points,daily,completeTask,taskInDateRange,taskReminders,RITUAL_KINDS,RITUAL_NAMES} from './model.js';
 import {readState,writeState} from './storage.js';
@@ -36,8 +37,10 @@ const checkForUpdate=createUpdater({notify});
 let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
-const lanBackup=createLanBackup({photos:async()=>(await listPhotos()).filter(usedRitualPhoto),records:()=>state.shoeRecords,tasks:()=>state.tasks,notify});
+const lanBackup=createLanBackup({photos:async()=>(await listPhotos()).filter(usedRitualPhoto),records:()=>state.shoeRecords,tasks:()=>state.tasks,notify,getAccountToken:()=>accountClient?.token});
+const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){page='今日';hidden=false;ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
 let page = '今日';
+let accountWasLoggedIn=false;
 let hidden = false;
 let ritualKind = null;
 let cancelHold = ()=>{};
@@ -114,6 +117,8 @@ function render() {
   stopCamera();
   for(const url of photoUrls)URL.revokeObjectURL(url);
   photoUrls=[];
+  if(!accountClient.loggedIn){document.querySelector('nav').innerHTML='';document.querySelector('header small').textContent='曾家家奴 · 身份验证';accountClient.loginView(content);content.insertAdjacentHTML('beforeend','<p class="muted">当前版本 '+APP_VERSION+'</p><button data-action="release-log">更新日志</button>'+releaseLogHtml()+certificateGuideHtml());return;}
+  document.querySelector('header small').textContent=accountClient.profile.identity+'（'+accountClient.profile.name+'）';
   document.querySelector('nav').innerHTML = ['家规','今日','任务','积分','档案','订阅','隐私'].map(name=>`<button data-page="${name}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name}</button>`).join('');
   document.querySelector('h1').textContent = '曾家家奴';
   if (hidden) { content.innerHTML='<section><h2>内容已隐去</h2><p>轻触继续查看私人日课。</p><button data-action="reveal">继续查看</button><p class="muted">这是界面遮挡，不是密码或数据加密。</p></section>'; return; }
@@ -149,6 +154,7 @@ function render() {
     content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section><section><h3>洗鞋照片记录</h3><div id="shoe-archive"></div></section>`);
     renderShoeArchive();
   }
+  if(page==='隐私'){content.insertAdjacentHTML('afterbegin',accountClient.settingsHtml());accountClient.bindSettings(content);}
   if(staticHosting&&page==='隐私')content.insertAdjacentHTML('beforeend',lanBackup.settingsHtml());
   if(page==='订阅')unmountSubscription=mountSubscription(content,state,{commit,notify,getPrivateConfig:()=>staticHosting?{contractAvailable:lanBackup.enabled}:pushClient.configuration,loadPrivateContract:staticHosting?()=>lanBackup.readContract():null});
   if(page==='今日'&&!ritualKind&&!reportOpen){
@@ -550,7 +556,7 @@ document.addEventListener('change',async event=>{
   if(event.target.id!=='import') return;
   try {const file=event.target.files[0];if(!file)return;if(file.size>5_000_000)throw Error('备份超过 5 MB');const restored=parseBackup(await file.text());if(!confirm('将覆盖当前本机数据。已导出当前备份并确认继续？'))return;writeState(restored);state=restored;storageFailed=false;render();notify('备份已恢复');}catch(error){notify(`恢复失败：${error.message}`);}
 });
-document.addEventListener('visibilitychange',()=>{if(page==='家规'&&identityKeepsView()){content.style.visibility=document.hidden&&state.settings.hideOnLeave?'hidden':'';return;}if(document.hidden&&state.settings.hideOnLeave){hidden=true;render();}else if(!document.hidden)render();});
+document.addEventListener('visibilitychange',()=>{if(accountClient.working)return;if(page==='家规'&&identityKeepsView()){content.style.visibility=document.hidden&&state.settings.hideOnLeave?'hidden':'';return;}if(document.hidden&&state.settings.hideOnLeave){hidden=true;render();}else if(!document.hidden)render();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelHold();stopCamera();}});
 window.addEventListener('pagehide',stopCamera);
 window.addEventListener('blur',()=>cancelHold());
@@ -559,6 +565,7 @@ window.addEventListener('online',()=>{render();retryMedia();});window.addEventLi
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)retryMedia();});
 readRitualRoute();
 render();
+accountClient.boot();
 retryMedia();
 if(storageFailed)notify('本地读取异常，已保护原始数据。请进入隐私页恢复备份。');
 if('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('./sw.js').then(offlineStatus).catch(()=>notify('离线安装失败，请保持联网后重新打开。'));
