@@ -1,5 +1,6 @@
-export const paymentLink='https://qr.alipay.com/fkx14183eygj8nwfry2rn6b';
-export const paymentQr='./assets/payment-qr.jpg';
+export const paymentLink='https://qr.alipay.com/fkx18313ohw1q5orzxh5yf6';
+export const paymentQr='./assets/payment-qr-200.jpg';
+export const paymentAmountCents=20000;
 export const paymentRecipient='Zenith（*仪）';
 export const embeddedContract=null;
 export const pushService=null;
