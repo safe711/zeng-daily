@@ -8,7 +8,7 @@ export function dayKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
 export function initialState() {
-  return {version:4,anniversaries:[],subscription:subscriptionDefaults(),days:{},tasks:[{id:'shoe',title:'洗鞋',status:'active',confirmed:false,note:'已开展；具体要求尚未确认。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false},{id:'socks',title:'袜子赏赐',status:'possible',confirmed:false,note:'可能的赏赐，尚未发生；不作为已获嘉奖。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false}],shoeRecords:[],records:[],ledger:[],profile:{name:'',notes:''},settings:{hideOnLeave:true,paused:false,morning:'08:00',noon:'',evening:'21:00',gratitude:''}};
+  return {version:4,masterGifts:[],giftSlots:18,anniversaries:[],subscription:subscriptionDefaults(),days:{},tasks:[{id:'shoe',title:'洗鞋',status:'active',confirmed:false,note:'已开展；具体要求尚未确认。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false},{id:'socks',title:'袜子赏赐',status:'possible',confirmed:false,note:'可能的赏赐，尚未发生；不作为已获嘉奖。',done:false,startDate:'',endDate:'',command:'',dailyReminder:false}],shoeRecords:[],records:[],ledger:[],profile:{name:'',notes:''},settings:{hideOnLeave:true,paused:false,morning:'08:00',noon:'',evening:'21:00',gratitude:''}};
 }
 export function validDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000')) return false;
@@ -42,12 +42,14 @@ export function migrateState(state) {
   }
   if(state?.version===3)state={...state,version:4,subscription:subscriptionDefaults()};
   if(state?.version===4&&state.shoeRecords===undefined)state={...state,shoeRecords:[]};
+  if(state?.version===4)state={masterGifts:[],giftSlots:18,...state};
   return state;
 }
 export function validateState(state) {
   const string = value => typeof value === 'string' && value.length <= 10000;
   if (!state || state.version !== 4 || !state.days || typeof state.days !== 'object' || Array.isArray(state.days)) throw Error('备份版本或结构无效');
   validateSubscription(state.subscription);
+  validateGifts(state);
   if(state.servantProfile!==undefined){const p=state.servantProfile;if(!p||typeof p.duties!=='string'||!p.duties.trim()||p.duties.length>1000||!(p.photoId===null||validMediaId(p.photoId)))throw Error('本人档案信息无效');}
 
   if(state.anniversaries!==undefined){if(!Array.isArray(state.anniversaries)||state.anniversaries.length>2000)throw Error('天数记录列表无效');const ids=new Set();for(const r of state.anniversaries){if(!r||!validMediaId(r.id)||ids.has(r.id)||typeof r.title!=='string'||!r.title.trim()||r.title.length>200||!validDate(r.startDate)||!['inclusive','elapsed'].includes(r.countMode)||!['already','ordinal','countdown'].includes(r.display)||typeof r.pinned!=='boolean'||r.source!=='daysmatter'||!validDate(r.referenceDate)||!Number.isSafeInteger(r.sharedDays)||r.sharedDays<0||r.sharedDays>3652058||typeof r.sourceText!=='string'||r.sourceText.length>1000||![r.createdAt,r.updatedAt].every(t=>typeof t==='string'&&Number.isFinite(Date.parse(t))&&new Date(t).toISOString()===t))throw Error('天数记录内容无效');ids.add(r.id);}}
@@ -164,4 +166,32 @@ export function saveShoeRecord(state,recordId,note,now=new Date()){
   const text=`${record.taskTitle} · ${record.shoes.length} 双鞋前后对照照片已保存在本机${record.note?`\n${record.note}`:''}`;
   const previous=state.records.find(item=>item.shoeRecordId===record.id);
   if(previous){previous.date=record.date;previous.text=text;}else state.records.push({date:record.date,text,shoeRecordId:record.id});
+}
+
+export const GIFT_ICONS=['socks','shoes','underwear','pen','gift'];
+export function validateGifts(state){
+ const gifts=state.masterGifts??[],slots=state.giftSlots??18;
+ if(!Array.isArray(gifts)||!Number.isSafeInteger(slots)||slots<18||slots>1200||slots%6!==0||gifts.length>=slots)throw Error('赏赐收藏格数无效');
+ const ids=new Set(),occupied=new Set();
+ const stamp=t=>typeof t==='string'&&Number.isFinite(Date.parse(t))&&new Date(t).toISOString()===t;
+ for(const g of gifts){
+  if(!g||!validMediaId(g.id)||ids.has(g.id)||!Number.isSafeInteger(g.slot)||g.slot<0||g.slot>=slots-1||occupied.has(g.slot)||!['master','item'].every(k=>typeof g[k]==='string'&&g[k].trim()&&g[k].length<=100)||!GIFT_ICONS.includes(g.icon)||!validDate(g.date)||typeof g.note!=='string'||g.note.length>2000||!stamp(g.createdAt)||!stamp(g.updatedAt)||g.updatedAt<g.createdAt)throw Error('赏赐收藏内容无效');
+  ids.add(g.id);occupied.add(g.slot);
+ }
+}
+export function expandGiftSlots(state){
+ if(state.settings.paused)throw Error('日课已暂停');
+ validateGifts(state);const slots=state.giftSlots??18;if(slots>=1200)throw Error('收藏格已达上限');state.giftSlots=slots+6;
+}
+export function saveGift(state,{slot,id,master,item,icon,date,note},now=new Date()){
+ if(state.settings.paused)throw Error('日课已暂停');
+ validateGifts(state);
+ const gifts=state.masterGifts??[],slots=state.giftSlots??18,previous=id?gifts.find(g=>g.id===id):null;
+ if(id&&!previous)throw Error('这份赏赐已变化，请重新打开');
+ if(previous&&previous.slot!==slot||gifts.some(g=>g.slot===slot&&g.id!==id))throw Error('收藏格已占用');
+ const stamp=now.toISOString(),record={id:previous?.id??crypto.randomUUID(),slot,master:master.trim(),item:item.trim(),icon,date,note:note.trim(),createdAt:previous?.createdAt??stamp,updatedAt:stamp};
+ const next={...state,masterGifts:previous?gifts.map(g=>g.id===id?record:g):[...gifts,record],giftSlots:slots};
+ validateGifts(next);
+ if(next.masterGifts.length===slots-1&&slots<1200)next.giftSlots+=6;
+ state.masterGifts=next.masterGifts;state.giftSlots=next.giftSlots;return record.id;
 }
