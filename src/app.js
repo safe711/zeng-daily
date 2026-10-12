@@ -1,3 +1,4 @@
+import {mountFamilyHeaders} from './familyheaders.js';
 import {scoreCalendarHtml,mountScoreCalendar,calendarKeepsView} from './calendar.js';
 import {accountBrandLine} from './branding.js';
 import {collectionHtml,mountCollection} from './collection.js';
@@ -66,6 +67,7 @@ let unmountIdentity=()=>{};
 let unmountDaysMatter=()=>{};
 let unmountCollection=()=>{};
 let unmountCalendar=()=>{};
+let unmountFamilyHeaders=()=>{};
 let taskDetailId=null;
 let shoeTaskId=null;
 let shoeRecordId=null;
@@ -130,7 +132,7 @@ function setHidden(value){hidden=value;try{if(value&&accountClient.profile?.id)l
 function paintConnection(){const online=accountClient.connected;for(const node of document.querySelectorAll('[data-server-connection]')){node.textContent=online?'在线':'离线';node.className=online?'network-online':'network-offline';}}
 function removeLock(){document.body.classList.remove('is-account-locked');if(lockScreen?.open)lockScreen.close();lockScreen?.remove();lockScreen=null;content.inert=false;content.style.visibility='';document.querySelector('header').style.visibility='';document.querySelector('nav').style.visibility='';}
 function paintLock(){document.body.classList.add('is-account-locked');closeWelcome();for(const dialog of document.querySelectorAll('dialog[open]:not(.content-lock)'))dialog.close();content.inert=true;content.style.visibility='hidden';document.querySelector('header').style.visibility='hidden';document.querySelector('nav').style.visibility='hidden';if(lockScreen){if(!lockScreen.open)lockScreen.showModal();return;}lockScreen=document.createElement('dialog');lockScreen.className='content-lock';lockScreen.setAttribute('role','dialog');lockScreen.setAttribute('aria-modal','true');lockScreen.setAttribute('aria-label','内容解锁');document.body.append(lockScreen);lockScreen.addEventListener('click',e=>e.stopPropagation());lockScreen.addEventListener('cancel',e=>e.preventDefault());accountClient.unlockView(lockScreen,()=>{setHidden(false);removeLock();render();});lockScreen.showModal();}
-function bindFoldout(fold,key){if(fold.classList.contains('family-panel')){const summary=fold.querySelector(':scope > summary');summary?.addEventListener('click',()=>{if(!fold.open)return;const bounds=summary.getBoundingClientRect(),top=parseFloat(getComputedStyle(summary).top)||0;if(bounds.top<=top+1&&bounds.bottom>top)requestAnimationFrame(()=>{if(fold.isConnected&&!fold.open)fold.scrollIntoView({block:'start',behavior:'instant'});});});}const storeKey='daily-fold:'+accountClient.profile.id+':'+key;try{fold.open=localStorage.getItem(storeKey)==='open';}catch{}fold.addEventListener('toggle',()=>{try{localStorage.setItem(storeKey,fold.open?'open':'closed');}catch{}if(!fold.open)for(const video of fold.querySelectorAll('video'))video.pause();});}
+function bindFoldout(fold,key){if(fold.classList.contains('family-panel')){const summary=fold.querySelector(':scope > summary');summary?.addEventListener('click',()=>{if(!fold.open)return;const bounds=summary.getBoundingClientRect(),top=parseFloat(getComputedStyle(document.documentElement,'::before').height)||0;if(bounds.top<=top+1&&bounds.bottom>top)requestAnimationFrame(()=>{if(fold.isConnected&&!fold.open)fold.scrollIntoView({block:'start',behavior:'instant'});});});}const storeKey='daily-fold:'+accountClient.profile.id+':'+key;try{fold.open=localStorage.getItem(storeKey)==='open';}catch{}fold.addEventListener('toggle',()=>{try{localStorage.setItem(storeKey,fold.open?'open':'closed');}catch{}if(!fold.open)for(const video of fold.querySelectorAll('video'))video.pause();});}
 function ritualHistoryHtml(current){return Object.entries(current.days).sort(([a],[b])=>b.localeCompare(a)).map(([date,entry])=>{const text=RITUAL_KINDS.map(kind=>ritualNames[kind]+'：'+(entry[kind]??'未记录')+(entry[kind]!==undefined?'\n完成时间：'+(ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'):'')).join('\n\n')+(entry.legacyEvening!==undefined?'\n\n晚间复命（旧记录）：'+entry.legacyEvening:'');return '<details class="archive-fold ritual-history-row" data-history-date="'+escape(date)+'"><summary>'+escape(date)+'</summary><div class="fold-body ritual-history-body"><p>'+escape(text)+'</p></div></details>';}).join('')||'<p class="muted">尚无记录。</p>';}
 function archiveFoldouts(){function group(title,key,nodes){if(!nodes.length)return;const fold=document.createElement('details');fold.className='archive-fold';fold.dataset.fold=key;const summary=document.createElement('summary');summary.textContent=title;fold.append(summary);nodes[0].before(fold);const inside=document.createElement('div');inside.className='fold-body';fold.append(inside);for(const node of nodes)inside.append(node);bindFoldout(fold,key);}
 group('曾家主子','masters',[...content.querySelectorAll('.fixed-profile:not(.disaster-servant-profile):not(.servant-profile)')]);group('曾家奴才','servants',[...content.querySelectorAll('.servant-profile,.disaster-servant-profile')]);const photos=content.querySelector('#photo-album')?.closest('section');if(photos){photos.querySelector('h3')?.remove();group('礼仪照片 · 日课请安','ritual-photos',[photos]);}for(const fold of content.querySelectorAll('[data-history-date]'))bindFoldout(fold,'ritual-history:'+fold.dataset.historyDate);}
@@ -150,6 +152,7 @@ function render() {
   unmountDaysMatter();unmountDaysMatter=()=>{};
   unmountCollection();unmountCollection=()=>{};
   unmountCalendar();unmountCalendar=()=>{};
+  unmountFamilyHeaders();unmountFamilyHeaders=()=>{};
   cancelHold();
   stopCamera();
   for(const url of photoUrls)URL.revokeObjectURL(url);
@@ -191,6 +194,7 @@ function render() {
   if(page==='家规')for(const fold of content.querySelectorAll('[data-fold]'))bindFoldout(fold,fold.dataset.fold);
   if(['今日','档案'].includes(page))unmountDaysMatter=mountDaysMatter(content,{getState:()=>state,commit,notify,getAccount:()=>accountClient.profile});
   if(page==='任务')prepareTaskShares();
+  if(page==='家规')unmountFamilyHeaders=mountFamilyHeaders(content);
   if(page==='家规')unmountIdentity=mountIdentity(content,{loadMedia:id=>accountClient.loadPrivateMedia(id),getAccount:()=>accountClient.profile,getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
   if(page==='档案'){
     unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile,loadMedia:id=>accountClient.loadPrivateMedia(id),commit,notify});
