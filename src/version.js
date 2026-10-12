@@ -1,6 +1,7 @@
-export const APP_VERSION='1.2.9';
+export const APP_VERSION='1.2.10';
 export const CLIENT_BUILD=`daily-shell-v${APP_VERSION}`;
 export const RELEASES=[
+  {version:'1.2.10',date:'2026-10-12',changes:['各礼仪的拍照预览下方新增返回礼仪界面按钮，采用当前照片后回到对应礼仪继续打卡。']},
   {version:'1.2.9',date:'2026-10-12',changes:['应用名称统一为 ZENG LEGACY，更新页面标题、桌面名称、欢迎提示、通知与分享说明。']},
   {version:'1.2.8',date:'2026-10-12',changes:['修复新桌面应用首次登录等待所有历史照片下载的问题，账号验证与文字历史载入后即可进入。','历史照片在后台校验恢复，失败保留重试；恢复期间保留本机新增记录，切换账号停止原账号媒体导入。']},
   {version:'1.2.7',date:'2026-10-12',changes:['新增 zenglegacy.cn 自有域名应用入口，继续使用原账号和服务器历史记录。','服务器兼容新旧应用域名，Face ID 通行密钥按网站域名分别登记，首次进入新域名请使用密码登录。']},

@@ -126,3 +126,5 @@ dialog.content-lock{position:fixed;inset:0;width:100%;max-width:none;height:100v
 dialog.content-lock[open]{display:flex;flex-direction:column;align-items:center;justify-content:safe center}dialog.content-lock:not([open]){display:none}
 dialog.content-lock::backdrop{background:#131416}
 dialog.content-lock>section.account-unlock{flex:none;max-width:330px;width:100%;min-width:0;margin:0;padding:12px 0;border:0;border-radius:0;background:transparent}
+
+.camera-review .camera-return{grid-column:1/-1;width:100%;color:var(--gold);}
