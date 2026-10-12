@@ -120,8 +120,9 @@ function setHidden(value){hidden=value;try{if(value&&accountClient.profile?.id)l
 function removeLock(){lockScreen?.remove();lockScreen=null;content.inert=false;content.style.visibility='';document.querySelector('header').style.visibility='';document.querySelector('nav').style.visibility='';}
 function paintLock(){closeWelcome();for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();content.inert=true;content.style.visibility='hidden';document.querySelector('header').style.visibility='hidden';document.querySelector('nav').style.visibility='hidden';if(lockScreen)return;lockScreen=document.createElement('div');lockScreen.className='content-lock';lockScreen.setAttribute('role','dialog');lockScreen.setAttribute('aria-modal','true');lockScreen.setAttribute('aria-label','内容解锁');document.body.append(lockScreen);lockScreen.addEventListener('click',e=>e.stopPropagation());accountClient.unlockView(lockScreen,()=>{setHidden(false);removeLock();render();});}
 function bindFoldout(fold,key){const storeKey='daily-fold:'+accountClient.profile.id+':'+key;try{fold.open=localStorage.getItem(storeKey)==='open';}catch{}fold.addEventListener('toggle',()=>{try{localStorage.setItem(storeKey,fold.open?'open':'closed');}catch{}if(!fold.open)for(const video of fold.querySelectorAll('video'))video.pause();});}
+function ritualHistoryHtml(current){return Object.entries(current.days).sort(([a],[b])=>b.localeCompare(a)).map(([date,entry])=>{const text=RITUAL_KINDS.map(kind=>ritualNames[kind]+'：'+(entry[kind]??'未记录')+(entry[kind]!==undefined?'\n完成时间：'+(ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'):'')).join('\n\n')+(entry.legacyEvening!==undefined?'\n\n晚间复命（旧记录）：'+entry.legacyEvening:'');return '<details class="archive-fold ritual-history-row" data-history-date="'+escape(date)+'"><summary>'+escape(date)+'</summary><div class="fold-body ritual-history-body"><p>'+escape(text)+'</p></div></details>';}).join('')||'<p class="muted">尚无记录。</p>';}
 function archiveFoldouts(){function group(title,key,nodes){if(!nodes.length)return;const fold=document.createElement('details');fold.className='archive-fold';fold.dataset.fold=key;const summary=document.createElement('summary');summary.textContent=title;fold.append(summary);nodes[0].before(fold);const inside=document.createElement('div');inside.className='fold-body';fold.append(inside);for(const node of nodes)inside.append(node);bindFoldout(fold,key);}
-group('曾家主子','masters',[...content.querySelectorAll('.fixed-profile:not(.disaster-servant-profile)')]);group('曾家奴才','servants',[...content.querySelectorAll('.servant-profile,.disaster-servant-profile')]);const photos=content.querySelector('#photo-album')?.closest('section');if(photos){photos.querySelector('h3')?.remove();group('礼仪照片 · 日课请安','ritual-photos',[photos]);}}
+group('曾家主子','masters',[...content.querySelectorAll('.fixed-profile:not(.disaster-servant-profile):not(.servant-profile)')]);group('曾家奴才','servants',[...content.querySelectorAll('.servant-profile,.disaster-servant-profile')]);const photos=content.querySelector('#photo-album')?.closest('section');if(photos){photos.querySelector('h3')?.remove();group('礼仪照片 · 日课请安','ritual-photos',[photos]);}for(const fold of content.querySelectorAll('[data-history-date]'))bindFoldout(fold,'ritual-history:'+fold.dataset.historyDate);}
 function render() {
   if(hidden&&accountClient.loggedIn){paintLock();return;}
   removeLock();
@@ -156,7 +157,7 @@ function render() {
   }
   if(page==='任务') body=tasksHtml(state).replace('<div class="task-list">',reminderPanel()+'<div class="task-list">');
   if(page==='积分') body = `<section><small>忠诚积分 · 虚拟计分</small><div class="score">${points(state)}</div><p>请安与复命各 +2，已开展任务完成 +3。警告不自动扣分。</p></section><form data-form="ledger"><label>类型<select name="kind"><option value="reward">虚拟嘉奖</option><option value="warning">虚拟警告</option></select></label>${input('points','分值（-1000 至 1000）','0','number')}${area('text','说明')}<button ${paused?'disabled':''}>记录虚拟反馈</button></form>${list([...state.ledger].reverse().map(entry=>({...entry,text:`${entry.kind==='warning'?'虚拟警告':entry.kind==='reward'?'虚拟嘉奖':'积分'} ${entry.points>=0?'+':''}${entry.points} · ${entry.text}`})))}`;
-  if(page==='档案') body = `<section class="fixed-profile" aria-labelledby="fixed-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="fixed-profile-title">主子：曾仪</h3><div id="profile-portrait"><p class="muted">正在读取主子照片…</p></div><dl><div><dt>生日</dt><dd>2003年</dd></div><div><dt>学历</dt><dd>研究生</dd></div><div><dt>学校</dt><dd>对外经济贸易大学</dd></div><div><dt>专属狗奴</dt><dd>于涵、小姜</dd></div></dl><h4>简介</h4><p>目前负责管理曾家狗奴才，发布命令，收取贡金，办理灾祸出售等业务。</p></section><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 服务器 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 服务器。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${list(Object.entries(state.days).sort(([first],[second])=>second.localeCompare(first)).map(([date,entry])=>({date,text:RITUAL_KINDS.map(kind=>`${ritualNames[kind]}：${entry[kind]??'未记录'}${entry[kind]!==undefined?`\n完成时间：${ritualEvidence(entry,kind).completedTime||'时间未记录（旧数据）'}`:''}`).join('\n\n')+(entry.legacyEvening!==undefined?`\n\n晚间复命（旧记录）：${entry.legacyEvening}`:'')})))}`;
+  if(page==='档案') body = `<section class="fixed-profile" aria-labelledby="fixed-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="fixed-profile-title">主子：曾仪</h3><div id="profile-portrait"><p class="muted">正在读取主子照片…</p></div><dl><div><dt>生日</dt><dd>2003年</dd></div><div><dt>学历</dt><dd>研究生</dd></div><div><dt>学校</dt><dd>对外经济贸易大学</dd></div><div><dt>专属狗奴</dt><dd>于涵、小姜</dd></div></dl><h4>简介</h4><p>目前负责管理曾家狗奴才，发布命令，收取贡金，办理灾祸出售等业务。</p></section><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 服务器 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 服务器。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${ritualHistoryHtml(state)}`;
   if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“曾家家奴”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
   const mediaSaved=manual=>staticHosting?(manual?lanBackup.retry():lanBackup.run()):syncTaskMedia(state.tasks,{key:nasToken}).then(()=>retryMedia()).catch(error=>notify('图片保留待补传：'+error.message));
   if(taskDetailId&&page==='任务'){unmountTask=mountTask(content,taskDetailId,{getState:()=>state,commit:change=>commit(change,false),notify,onBack:()=>{taskDetailId=null;history.replaceState(null,'',location.pathname+location.search);render();},onMediaSaved:mediaSaved});return;}
@@ -176,8 +177,8 @@ function render() {
   if(page==='档案'){
     unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile,commit,notify});
     renderProfilePortrait();
-    content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section><section><h3>洗鞋照片记录</h3><div id="shoe-archive"></div></section>`);
-    renderShoeArchive();
+    content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section>`);
+
   }
   if(page==='隐私'){content.insertAdjacentHTML('afterbegin',accountClient.settingsHtml());accountClient.bindSettings(content);}
   if(staticHosting&&page==='隐私')content.insertAdjacentHTML('beforeend',lanBackup.settingsHtml());
@@ -199,15 +200,6 @@ function render() {
     paintPushStatus();
   }
   if(page==='档案')renderPhotoAlbum();
-  if(page==='档案'){
-    content.insertAdjacentHTML('beforeend','<section><h3>微信汇总截图 · 服务器 月归档</h3><p>四项礼仪完成后自动保存。目录：日课分享截图 / 年-月 / 年-月-日.png。每日保留最新一份，服务器 离线时留在本机待补传。</p><p>文字备份不含照片或汇总截图。外网访问需在 服务器 单独启用带密码的目录分享，不会自动公开。</p><button data-action="sync-media">补传照片与汇总截图</button><div id="report-archive"></div></section>');
-    renderReportArchive();
-    if(staticHosting){
-      const section=content.querySelector('#report-archive').closest('section');
-      section.querySelector('h3').textContent='微信汇总截图 · 本机保存';
-      section.querySelectorAll('p')[0].textContent='四项礼仪完成后保存到本机，每日保留最新一份。可单独下载、再自行备份到 服务器。';
-    }
-  }
   if(staticHosting)for(const control of content.querySelectorAll('[data-action="sync-photos"],[data-action="sync-media"],[data-action="sync-photo"]'))control.remove();
   if(page==='今日'&&!ritualKind&&!reportOpen){
     content.querySelector('.daily-share')?.insertAdjacentHTML('beforeend','<p id="archive-status" role="status"></p>');
