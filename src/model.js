@@ -48,6 +48,8 @@ export function validateState(state) {
   const string = value => typeof value === 'string' && value.length <= 10000;
   if (!state || state.version !== 4 || !state.days || typeof state.days !== 'object' || Array.isArray(state.days)) throw Error('备份版本或结构无效');
   validateSubscription(state.subscription);
+  if(state.servantProfile!==undefined){const p=state.servantProfile;if(!p||typeof p.duties!=='string'||!p.duties.trim()||p.duties.length>1000||!(p.photoId===null||validMediaId(p.photoId)))throw Error('本人档案信息无效');}
+
   if(state.anniversaries!==undefined){if(!Array.isArray(state.anniversaries)||state.anniversaries.length>2000)throw Error('天数记录列表无效');const ids=new Set();for(const r of state.anniversaries){if(!r||!validMediaId(r.id)||ids.has(r.id)||typeof r.title!=='string'||!r.title.trim()||r.title.length>200||!validDate(r.startDate)||!['inclusive','elapsed'].includes(r.countMode)||!['already','ordinal','countdown'].includes(r.display)||typeof r.pinned!=='boolean'||r.source!=='daysmatter'||!validDate(r.referenceDate)||!Number.isSafeInteger(r.sharedDays)||r.sharedDays<0||r.sharedDays>3652058||typeof r.sourceText!=='string'||r.sourceText.length>1000||![r.createdAt,r.updatedAt].every(t=>typeof t==='string'&&Number.isFinite(Date.parse(t))&&new Date(t).toISOString()===t))throw Error('天数记录内容无效');ids.add(r.id);}}
 
   if(state.identityContract!==undefined){const r=state.identityContract;
