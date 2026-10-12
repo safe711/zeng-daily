@@ -1,4 +1,4 @@
-import {installPhotoCameras} from './camera.js';
+import {openPhotoCamera,installPhotoCameras} from './camera.js';
 import {showWelcome,closeWelcome,servantProfileHtml,disasterServantsHtml,mountServantProfile} from './servant.js';
 import {captureDaysMatterShare,hasPendingDaysMatter,mountDaysMatter,dayRecordsHtml} from './daysmatter.js';
 import {createAccountClient} from './accounts.js';
@@ -7,7 +7,7 @@ import {dayKey,initialState,parseBackup,points,daily,completeTask,taskInDateRang
 import {readState,writeState} from './storage.js';
 import {createHoldController} from './hold.js';
 import {ritualGreeting,ritualInstruction,completeRitual,ritualEvidence} from './ritual.js';
-import {savePhoto,deletePhoto,getPhoto,listPhotos,clearMedia,latestRitualPhoto,capturePhoto,syncPhoto,getReport,listReports} from './photos.js';
+import {savePhoto,deletePhoto,getPhoto,listPhotos,clearMedia,latestRitualPhoto,syncPhoto,getReport,listReports} from './photos.js';
 import {archiveReport,syncPendingReports,resetReportQueue} from './reports.js';
 import {ritualReport,reportText,buildShareCard,sharePrepared} from './share.js';
 import {mountSubscription} from './subscriptionview.js';
@@ -64,11 +64,10 @@ function usedRitualPhoto(photo){return RITUAL_KINDS.some(kind=>ritualEvidence(st
 function discardUnusedPhoto(){if(currentPhoto&&!usedRitualPhoto(currentPhoto)){currentPhoto=null;photoKey='';}}
 let photoKey='';
 let photoLoading=false;
-let cameraFacing='environment';
-let cameraStream=null;
+let closeRitualCamera=null;
 let cameraRequest=0;
 let cameraStarting=false;
-let photoCapturing=false;
+
 let photoUrls=[];
 let nasToken='';
 let syncingPhotos=new Set();
@@ -195,6 +194,7 @@ function render() {
     const form=content.querySelector('form[data-form="settings"]');
     for(const kind of ['morning','evening'])form.querySelector(`[name="${kind}"]`).closest('label').remove();
     form.insertAdjacentHTML('afterbegin',RITUAL_KINDS.map(kind=>`<label>${ritualNames[kind]}提醒时间（可留空）<input name="${kind}" type="time" value="${escape(state.settings[kind])}"></label>`).join(''));
+    const timeGroup=document.createElement('details');timeGroup.className='archive-fold privacy-time';timeGroup.innerHTML='<summary>礼仪提醒时间</summary><div class="privacy-time-fields"></div>';form.prepend(timeGroup);for(const field of [...form.querySelectorAll('input[type="time"]')])timeGroup.querySelector('.privacy-time-fields').append(field.closest('label'));bindFoldout(timeGroup,'privacy-times');form.classList.add('privacy-preferences');
     if(!staticHosting)content.insertAdjacentHTML('beforeend','<section><h3>绿联 服务器 相册</h3><p id="nas-status">正在检查连接配置…</p><p>照片保存在独立目录“日课请安”。服务器 未接通时，拍照仍可打卡，照片标为待同步。</p><form data-form="nas-connect"><label>本机上传服务连接密钥<input name="token" type="password" autocomplete="off" required></label><button>连接上传服务</button></form><p class="muted">这是本机服务密钥，不是 服务器 账户密码；仅保留在此浏览器会话中。</p><button data-action="sync-photos">补传待同步照片</button></section>');
     offlineStatus();nasStatus();
     content.insertAdjacentHTML('beforeend','<section><h3>关闭后的提醒</h3><p id="push-status">正在检查自建发送服务…</p><button data-action="enable-push" disabled>开启后台提醒</button><button data-action="test-push" disabled>发送测试提醒</button><button data-action="stop-push" disabled>停止此设备提醒</button><p class="muted">锁屏仅显示“日课”。系统权限、网络和专注模式可能影响送达，不保证精确准时。仅使用 服务器/Windows 自建发送服务。</p></section>');
@@ -227,7 +227,8 @@ function renderRitual() {
     content.lastElementChild.textContent=staticHosting?'请安记录先保存在手机，回家后连同照片自动同步账号历史。':'请安记录留在本机，照片可同步至你的 服务器。';
     content.querySelector('.ritual-detail').insertAdjacentHTML('beforeend',`<div class="ritual-instruction"><p>${escape(ritualInstruction(kind))}</p><blockquote>${escape(done?(evidence.phrase||saved):ritualGreeting(kind,date))}</blockquote>${done?`<p>完成时间：${escape(evidence.completedTime||'时间未记录（旧数据）')}</p>`:''}<small>请自行朗读与完成；应用不录音，也不自动判断动作。</small></div>`);
     const photoPanel=document.createElement('section');photoPanel.className='photo-checkin';
-    photoPanel.innerHTML=`<h3>拍照打卡</h3><p id="photo-status" role="status">${photoStatus(currentPhoto)}</p><div id="photo-preview"></div>${!done?`<div class="camera-stage ritual-camera-stage" hidden><video id="ritual-camera" autoplay playsinline muted hidden aria-label="实时相机画面"></video><button type="button" class="camera-flip" data-action="switch-camera" hidden>切换前置</button></div><button data-action="start-camera" ${state.settings.paused?'disabled':''}>${currentPhoto?'重新拍照':'打开相机'}</button><button data-action="take-photo" hidden>拍下并预览</button><button data-action="stop-camera" hidden>取消拍摄</button>`:''}${!done&&currentPhoto?'<button data-action="discard-photo">取消使用这张照片</button>':''}${currentPhoto?`<button data-action="download-photo" data-id="${escape(currentPhoto.id)}">下载照片</button>${!staticHosting&&usedRitualPhoto(currentPhoto)?`<button data-action="sync-photo" data-id="${escape(currentPhoto.id)}">${currentPhoto.status==='uploaded'?'检查同步状态':'上传至 服务器'}</button>`:''}`:''}<p class="muted">${done?'旧记录无照片时不会自动补造。':'拍照后先预览，长按完成礼仪才保存；取消或离开不会保存未使用照片。'} ${staticHosting?'完成礼仪后照片才保存到手机，回家自动备份至 服务器。':'服务器 上传状态以实际结果为准。'}</p>`;
+    photoPanel.innerHTML=`<h3>拍照打卡</h3><p id="photo-status" role="status">${photoStatus(currentPhoto)}</p><div id="photo-preview"></div>${!done?`<button data-action="start-camera" ${state.settings.paused?'disabled':''}>${currentPhoto?'重新拍照':'打开相机'}</button>`:''}${currentPhoto?`<button data-action="download-photo" data-id="${escape(currentPhoto.id)}">下载照片</button>`:''}<p class="muted">${done?'旧记录无照片时不会自动补造。':'完成礼仪后保存；重新拍照会丢弃当前预览照片。'}</p>`;
+
     const note=content.querySelector('.ritual-note');
     if(note)note.replaceWith(photoPanel);else content.querySelector('.ritual-action').before(photoPanel);
     if(currentPhoto){const image=document.createElement('img');image.alt='本次请安打卡照片';const url=URL.createObjectURL(currentPhoto.blob);photoUrls.push(url);image.src=url;photoPanel.querySelector('#photo-preview').append(image);}
@@ -268,60 +269,14 @@ function renderRitual() {
   button.addEventListener('blur',cancel);
   button.addEventListener('contextmenu',event=>event.preventDefault());
 }
-function stopCamera(reset=true) {
-  if(reset)cameraFacing='environment';
-  const stage=document.querySelector('.ritual-camera-stage');if(stage)stage.hidden=true;
-  cameraRequest++;
-  cameraStarting=false;
-  if(cameraStream)cameraStream.getTracks().forEach(track=>track.stop());
-  cameraStream=null;
-  const video=document.querySelector('#ritual-camera');
-  if(video){video.srcObject=null;video.hidden=true;}
-  for(const action of ['take-photo','stop-camera','switch-camera']){const control=document.querySelector(`[data-action="${action}"]`);if(control)control.hidden=true;}
-}
+function stopCamera(){cameraRequest++;cameraStarting=false;const close=closeRitualCamera;closeRitualCamera=null;close?.();}
 function photoStatus(photo) {
   if(!photo)return photoLoading?'正在读取本机照片…':'尚未拍照 · 完成按钮未解锁';
   if(!usedRitualPhoto(photo))return '照片仅供预览 · 完成礼仪后才保存';
   if(staticHosting)return mediaStatus(photo,true);
   return photo.status==='uploaded'?'照片已保存到 服务器 · 日课请安':'照片已保存在本机 · 服务器 待同步';
 }
-async function startCamera(facing=cameraFacing,exact=false) {
-  if(state.settings.paused)throw Error('日课已暂停');
-  if(cameraStarting || cameraStream)return;
-  if(!isSecureContext || !navigator.mediaDevices?.getUserMedia)throw Error('相机需要可信 HTTPS；电脑可用 localhost 预览');
-  const video=document.querySelector('#ritual-camera');
-  if(!video)throw Error('请先打开礼仪详情页');
-  const request=++cameraRequest;cameraStarting=true;
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:exact?{exact:facing}:{ideal:facing}},audio:false});
-    if(request!==cameraRequest || !video.isConnected || document.hidden){stream.getTracks().forEach(track=>track.stop());return;}
-    cameraStream=stream;cameraFacing=stream.getVideoTracks()[0]?.getSettings().facingMode||facing;video.srcObject=stream;video.hidden=false;video.classList.toggle('camera-front',cameraFacing==='user');const stage=video.closest('.camera-stage');if(stage)stage.hidden=false;await video.play();const flip=document.querySelector('[data-action="switch-camera"]');if(flip){flip.textContent=cameraFacing==='user'?'切换后置':'切换前置';flip.setAttribute('aria-label',flip.textContent+'摄像头');}
-    for(const action of ['take-photo','stop-camera','switch-camera']){const control=document.querySelector(`[data-action="${action}"]`);if(control)control.hidden=false;}
-    notify('相机已打开，点击“拍下并预览”打卡');
-  }catch(error){
-    if(request!==cameraRequest)return;
-    stopCamera();
-    throw Error(error.name==='NotAllowedError'?'未获得相机权限，请允许相机访问后重试':error.name==='NotFoundError'?'此设备没有可用相机；请在 iPhone 上拍照':error.name==='NotReadableError'?'相机正在被其他应用占用，请稍后再试':'相机打开失败，请检查权限与 HTTPS 连接');
-  }finally{if(request===cameraRequest)cameraStarting=false;}
-}
-async function switchCamera(){if(cameraStarting||photoCapturing||!cameraStream)return;const previous=cameraFacing,next=previous==='user'?'environment':'user';stopCamera(false);try{await startCamera(next,true);}catch{notify('无法切换所选摄像头，正在恢复原相机');await startCamera(previous);}}
-async function takePhoto() {
-  if(photoCapturing)return;
-  if(state.settings.paused)throw Error('日课已暂停');
-  const date=dayKey();
-  const kind=ritualKind;
-  const video=document.querySelector('#ritual-camera');
-  if(!video || !cameraStream || !cameraStream.getVideoTracks().some(track=>track.readyState==='live'))throw Error('请先打开相机');
-  photoCapturing=true;
-  try {
-    const photo=await capturePhoto(video,date,kind,{persist:false});
-    currentPhoto=photo;photoKey=`${date}:${kind}:draft`;photoLoading=false;stopCamera();
-    if(ritualKind===kind && page==='今日'&&!hidden)render();
-    notify('照片已保存到本机，可以长按完成礼仪');
-    if(staticHosting)lanBackup.run();
-    if(nasToken)syncSavedPhoto(photo).catch(error=>notify(`照片已保留，服务器 待同步：${error.message}`));
-  }finally{photoCapturing=false;}
-}
+async function startCamera(){if(state.settings.paused)throw Error('日课已暂停');if(cameraStarting)return;const kind=ritualKind,date=dayKey(),account=accountClient.profile.id,request=++cameraRequest;if(!kind||page!=='今日')return;discardUnusedPhoto();cameraStarting=true;const launch=content.querySelector('[data-action="start-camera"]');if(launch)launch.hidden=true;const download=content.querySelector('[data-action="download-photo"]');if(download)download.hidden=true;content.querySelector('#photo-preview')?.replaceChildren();closeRitualCamera=openPhotoCamera({title:'请安拍照',onError:notify,onClose:({captured})=>{closeRitualCamera=null;cameraStarting=false;if(!captured&&request===cameraRequest&&page==='今日'&&kind===ritualKind&&!hidden)render();},onCapture:file=>{if(request!==cameraRequest||page!=='今日'||ritualKind!==kind||date!==dayKey()||hidden||accountClient.profile.id!==account)return;currentPhoto={id:crypto.randomUUID(),date,kind,source:'camera',createdAt:new Date().toISOString(),blob:file,status:'pending',remotePath:'',error:''};photoKey=date+':'+kind+':draft';photoLoading=false;render();notify('照片已拍下，完成礼仪后保存');}});}
 async function syncSavedPhoto(photo) {
   if(staticHosting)throw Error('网页版仅保存本机图片，不提供 服务器 上传服务');
   if(syncingPhotos.has(photo.id))return false;
@@ -342,8 +297,8 @@ async function syncPendingPhotos() {
   const photos=(await listPhotos()).filter(photo=>usedRitualPhoto(photo)&&photo.status!=='uploaded');
   if(!photos.length){notify('没有待同步照片');return;}
   let uploaded=0;
-  for(const photo of photos){try{if(await syncSavedPhoto(photo))uploaded++;}catch(error){notify(`已同步 ${uploaded} 张，其余保留在本机：${error.message}`);return;}}
-  notify(`已同步 ${uploaded} 张照片至 服务器`);
+  for(const photo of photos){try{if(await syncSavedPhoto(photo))uploaded++;}catch(error){notify(uploaded>0?`已同步 ${uploaded} 张，其余保留在本机：${error.message}`:`照片暂未同步，已保留本机：${error.message}`);return;}}
+  notify(uploaded>0?`已同步 ${uploaded} 张照片至服务器`:'没有新增照片需要备份');
 }
 async function paintArchiveStatus(date=dayKey()){
   const element=content.querySelector('#archive-status');if(!element)return;
@@ -366,7 +321,7 @@ async function retryMedia(){
     const shoes=await syncPendingShoeMedia(nasToken,{records:()=>state.shoeRecords});
     const photos=(await listPhotos()).filter(photo=>photo.status!=='uploaded');let uploaded=0;let failed=0;
     for(const photo of photos){try{if(await syncSavedPhoto(photo))uploaded++;}catch{failed++;}}
-    notify(`汇总截图已同步 ${reports.uploaded}，待同步 ${reports.failed}；礼仪照片 ${uploaded}，待同步 ${failed}；洗鞋照片 ${shoes.photos}，截图 ${shoes.reports}，待同步 ${shoes.failed}`);
+    if((reports.uploaded||0)+(shoes.photos||0)+(shoes.reports||0)+uploaded>0)notify(`汇总截图已同步 ${reports.uploaded}，待同步 ${reports.failed}；礼仪照片 ${uploaded}，待同步 ${failed}；洗鞋照片 ${shoes.photos}，截图 ${shoes.reports}，待同步 ${shoes.failed}`);
     await paintArchiveStatus();await renderReportArchive();await renderShoeArchive();
   }catch(error){notify(`本机图片保留待同步：${error.message}`);}finally{retryingMedia=false;}
 }
@@ -491,7 +446,6 @@ document.addEventListener('click',async event=>{
     if(action==='close-certificate-guide'){document.querySelector('#certificate-guide').close();return;}
     if(action==='copy-certificate-address'){const field=document.querySelector('#certificate-install-address');try{await navigator.clipboard.writeText(field.value);notify('安装地址已复制，请打开 Safari 粘贴');}catch{field.focus();field.select();notify('请长按地址复制，再打开 Safari 粘贴');}return;}
 
-    if(action==='discard-photo'){discardUnusedPhoto();render();notify('已取消使用，照片未保存');return;}
     if(action==='share-task'){const prepared=taskShares.get(button.dataset.id);if(!prepared)throw Error('任务截图正在准备，请稍后点击');try{await shareTaskFile(prepared.blob,prepared.date,prepared.title,undefined,'状态图');notify('请在分享菜单选择微信和接收人');}catch(error){if(error.name==='AbortError'){notify('已取消分享，任务记录保留');return;}throw error;}return;}
     if(action==='add-task'){content.querySelector('#add-task-dialog').showModal();return;}
     if(action==='close-add-task'){content.querySelector('#add-task-dialog').close();return;}
@@ -516,8 +470,6 @@ document.addEventListener('click',async event=>{
       if(!navigator.clipboard?.writeText)throw Error('此设备无法复制，请展开分段文本手动复制');await navigator.clipboard.writeText(prepared.text);notify('请安文本已复制，可粘贴至微信');return;
     }
     if(action==='start-camera')await startCamera();
-    if(action==='switch-camera')await switchCamera();
-    if(action==='take-photo')await takePhoto();
     if(action==='stop-camera')stopCamera();
     if(action==='download-photo'){
       const photo=currentPhoto?.id===button.dataset.id?currentPhoto:await getPhoto(button.dataset.id);if(!photo)throw Error('本机照片不存在');

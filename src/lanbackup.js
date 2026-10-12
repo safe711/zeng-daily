@@ -69,7 +69,7 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},getAc
       const shoes=await sendShoes(connection.key,{fetcher:upload,records});
       const taskMedia=tasks().length?await syncTaskMedia(tasks(),{fetcher:upload,key:connection.key}):{uploaded:0,failed:0};
       failed+=summary.failed+shoes.failed+taskMedia.failed;uploaded+=summary.uploaded+shoes.photos+shoes.reports+taskMedia.uploaded;
-      notify(`已备份 ${uploaded} 张照片与截图到 服务器${failed?`，${failed} 张保留在手机待补传`:''}`);
+      if(uploaded>0)notify(`已备份 ${uploaded} 张照片与截图到服务器${failed?`，${failed} 张保留在手机待补传`:''}`);else if(failed>0){paintStatus(`${failed} 张照片或截图待补传`);if(manual)notify(`${failed} 张照片或截图暂未上传，仍保存在手机`);}else if(manual)notify('没有新增图片需要备份');
       return {uploaded,failed};
     }catch(error){const text=connectionError(error);paintStatus(text);if(manual)notify(text+'；照片仍保存在手机');}
     finally{busy=false;}
