@@ -26,13 +26,13 @@ function openDatabase() {
   });
   return database;
 }
-async function operation(mode,action,storeName='photos',epoch) {
+async function operation(mode,action,storeName='photos',epoch,emit=true) {
   const db=await openDatabase();
   if(epoch!==undefined&&epoch!==photoGeneration)throw Error('本机数据已清空，旧图片保存已取消');
   return new Promise((resolve,reject)=>{
     const transaction=db.transaction(storeName,mode);
     const request=action(transaction.objectStore(storeName));
-    transaction.oncomplete=()=>{if(mode==='readwrite')globalThis.dispatchEvent?.(new Event('daily-media-saved'));resolve(request.result);};
+    transaction.oncomplete=()=>{if(mode==='readwrite'&&emit)globalThis.dispatchEvent?.(new Event('daily-media-saved'));resolve(request.result);};
     transaction.onerror=()=>reject(Error('照片保存失败，可能存储空间不足'));
     transaction.onabort=()=>reject(Error('照片存储操作未完成'));
   });
@@ -113,4 +113,4 @@ export async function deleteTaskMedia({taskId,recordIds,shoePhotoIds,taskMediaId
 }
 
 export async function exportMedia(){const names=['photos','reports','subscriptionMedia','shoePhotos','shoeReports'];const assets=[];for(const store of names){for(const a of await operation('readonly',s=>s.getAll(),store)){const {blob,...meta}=a;if(blob)assets.push({store,meta,blob});}}return assets;}
-export async function importMedia(assets){for(const a of assets){if(!['photos','reports','subscriptionMedia','shoePhotos','shoeReports'].includes(a.store)||!a.blob)throw Error('媒体恢复格式无效');await operation('readwrite',s=>s.put({...a.meta,blob:a.blob}),a.store);}}
+export async function importMedia(assets,{notify=true}={}){for(const a of assets){if(!['photos','reports','subscriptionMedia','shoePhotos','shoeReports'].includes(a.store)||!a.blob)throw Error('媒体恢复格式无效');await operation('readwrite',s=>s.put({...a.meta,blob:a.blob}),a.store,undefined,notify);}}
