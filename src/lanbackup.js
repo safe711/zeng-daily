@@ -1,3 +1,4 @@
+import {getServerOrigin} from './server.js';
 import {listPhotos,listReports,listShoePhotos,listShoeReports,syncPhoto} from './photos.js';
 import {listSubscriptionMedia} from './photos.js';
 import {syncTaskMedia} from './taskmedia.js';
@@ -24,7 +25,7 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},getAc
   }
   function disconnect(){storage.removeItem('daily-lan-backup');storage.setItem('daily-lan-disabled','true');disabled=true;config=null;}
   async function connect(){
-    if(getAccountToken){const accountToken=getAccountToken();if(accountToken)return {url:'https://192.168.1.20:4180',key:accountToken,account:true};throw Error('请先登录曾家家奴账号');}
+    if(getAccountToken){const accountToken=getAccountToken();if(accountToken)return {url:getServerOrigin(),key:accountToken,account:true};throw Error('请先登录曾家家奴账号');}
     /* Legacy device pairing retained only for older configuration compatibility. */
     if(config)return config;if(disabled||!online())throw Error('请在家里的 Wi-Fi 打开软件以连接 服务器');
     if(pairing)return pairing;
@@ -104,6 +105,6 @@ export function createLanBackup({records=()=>[],tasks=()=>[],notify=()=>{},getAc
     }
     return {signedAt:receipt.signedAt,videoHash:receipt.videoHash,signatureHash:receipt.signatureHash,nasPath:receipt.path};
   }
-  function settingsHtml(){return `<section><h3>回家自动备份到 服务器</h3><p>在家里的 Wi-Fi 打开软件，会自动连接 服务器 并补传照片、汇总截图和洗鞋记录。无需填写地址或密钥。外出时保留待上传图片，下次回家补传。</p><p>若浏览器提示访问本地网络，请选择允许。连接凭证只保存在本机。</p><p data-lan-status>${disabled?'自动备份已停止':(getAccountToken?.()&&lastStatus==='请先登录曾家家奴账号'?'账号已登录，有待传照片时自动备份':lastStatus).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}</p><button data-action="lan-retry">立即连接并补传</button><button data-action="lan-disconnect">停止自动备份</button><p><a href="https://192.168.1.20:4180/connection-check" target="_blank" rel="noopener noreferrer">打开连接检测页</a></p><p><button type="button" data-action="certificate-guide">证书安装帮助</button></p></section>`;}
+  function settingsHtml(){return `<section><h3>自动备份到服务器</h3><p>登录后自动连接当前服务器入口，补传照片、汇总截图和洗鞋记录。家庭网络使用局域网入口，外网可通过域名连接（需要 IPv6 网络）。连接失败时保留图片，恢复连接后补传。无需填写地址或密钥。</p><p>若浏览器提示访问本地网络，请选择允许。连接凭证只保存在本机。</p><p data-lan-status>${disabled?'自动备份已停止':(getAccountToken?.()&&lastStatus==='请先登录曾家家奴账号'?'账号已登录，有待传照片时自动备份':lastStatus).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}</p><button data-action="lan-retry">立即连接并补传</button><button data-action="lan-disconnect">停止自动备份</button><p><a href="${getServerOrigin()}/connection-check" target="_blank" rel="noopener noreferrer">打开连接检测页</a></p><p><button type="button" data-action="certificate-guide">证书安装帮助</button></p></section>`;}
   return {save,disconnect,connect,retry,run,uploadIdentity,readContract,readProfilePhoto,settingsHtml,get enabled(){return !disabled;},get configured(){return !!config;}};
 }
