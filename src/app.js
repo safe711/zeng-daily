@@ -187,14 +187,14 @@ function render() {
   if(page==='家规')for(const fold of content.querySelectorAll('[data-fold]'))bindFoldout(fold,fold.dataset.fold);
   if(['今日','档案'].includes(page))unmountDaysMatter=mountDaysMatter(content,{getState:()=>state,commit,notify,getAccount:()=>accountClient.profile});
   if(page==='任务')prepareTaskShares();
-  if(page==='家规')unmountIdentity=mountIdentity(content,{getAccount:()=>accountClient.profile,getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
+  if(page==='家规')unmountIdentity=mountIdentity(content,{loadMedia:id=>accountClient.loadPrivateMedia(id),getAccount:()=>accountClient.profile,getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
   if(page==='档案'){
     unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile,commit,notify});
     renderProfilePortrait();
     content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section>`);
 
   }
-  if(page==='隐私'){content.insertAdjacentHTML('afterbegin',accountClient.settingsHtml());accountClient.bindSettings(content);}
+  if(page==='隐私'){content.insertAdjacentHTML('afterbegin',accountClient.settingsHtml());accountClient.bindSettings(content);unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile});}
   if(staticHosting&&page==='隐私')content.insertAdjacentHTML('beforeend',lanBackup.settingsHtml());
   if(page==='订阅')unmountSubscription=mountSubscription(content,state,{commit,notify,getPrivateConfig:()=>staticHosting?{contractAvailable:lanBackup.enabled}:pushClient.configuration,loadPrivateContract:staticHosting?()=>lanBackup.readContract():null});
   if(page==='今日'&&!ritualKind&&!reportOpen){
