@@ -132,6 +132,7 @@ function ritualHistoryHtml(current){return Object.entries(current.days).sort(([a
 function archiveFoldouts(){function group(title,key,nodes){if(!nodes.length)return;const fold=document.createElement('details');fold.className='archive-fold';fold.dataset.fold=key;const summary=document.createElement('summary');summary.textContent=title;fold.append(summary);nodes[0].before(fold);const inside=document.createElement('div');inside.className='fold-body';fold.append(inside);for(const node of nodes)inside.append(node);bindFoldout(fold,key);}
 group('曾家主子','masters',[...content.querySelectorAll('.fixed-profile:not(.disaster-servant-profile):not(.servant-profile)')]);group('曾家奴才','servants',[...content.querySelectorAll('.servant-profile,.disaster-servant-profile')]);const photos=content.querySelector('#photo-album')?.closest('section');if(photos){photos.querySelector('h3')?.remove();group('礼仪照片 · 日课请安','ritual-photos',[photos]);}for(const fold of content.querySelectorAll('[data-history-date]'))bindFoldout(fold,'ritual-history:'+fold.dataset.historyDate);}
 function render() {
+  document.body.classList.toggle('is-account-login',!accountClient.loggedIn);
   const footerNote=document.querySelector('.site-footer-note');
   if(footerNote)footerNote.textContent=accountBrandLine(!hidden&&accountClient.loggedIn?accountClient.profile:null);
   if(hidden&&accountClient.loggedIn){paintLock();return;}
@@ -148,7 +149,7 @@ function render() {
   stopCamera();
   for(const url of photoUrls)URL.revokeObjectURL(url);
   photoUrls=[];
-  if(!accountClient.loggedIn){document.querySelector('nav').innerHTML='';document.querySelector('header small').textContent='Zeng Legacy · 身份验证';accountClient.loginView(content);content.insertAdjacentHTML('beforeend','<p class="muted">当前版本 '+APP_VERSION+'</p><button data-action="release-log">更新日志</button>'+releaseLogHtml()+certificateGuideHtml());return;}
+  if(!accountClient.loggedIn){document.querySelector('nav').innerHTML='';document.querySelector('header small').textContent='曾氏传承 · 身份验证';accountClient.loginView(content);content.insertAdjacentHTML('beforeend','<p class="muted login-version">当前版本 '+APP_VERSION+'</p><button class="login-release-button" data-action="release-log">更新日志</button>'+releaseLogHtml()+certificateGuideHtml());return;}
   document.querySelector('header small').textContent=accountClient.profile.identity+'（'+accountClient.profile.name+'）';
   document.querySelector('nav').innerHTML = ['家规','今日','任务','积分','档案','订阅','隐私'].map(name=>`<button data-page="${name}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name==='家规'?'曾氏':name}</button>`).join('');
   document.querySelector('h1').textContent = 'Zeng Legacy';
