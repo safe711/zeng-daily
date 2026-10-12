@@ -10,3 +10,13 @@ export async function readResponseBlob(response,{onBytes=()=>{},check=()=>{},typ
  const reader=response.body.getReader(),chunks=[];let bytes=0;
  try{while(true){check();const {done,value}=await reader.read();if(done)break;check();chunks.push(value);bytes+=value.byteLength;onBytes(bytes);}check();return new Blob(chunks,{type:type||response.headers.get('content-type')?.split(';')[0]||'application/octet-stream'});}catch(e){await reader.cancel(e).catch(()=>{});throw e;}finally{reader.releaseLock();}
 }
+
+// Application updates use the existing notification line; downloads keep their own card.
+export function createUpdateProgress(){
+ if(!globalThis.document)return createProgressTracker({id:'app-update',title:'应用更新'});
+ const node=document.querySelector('#message');if(!node)return createProgressTracker({id:'app-update',title:'应用更新'});
+ let active=false,timer=null;
+ function clear(){clearTimeout(timer);active=false;delete node.dataset.updateActive;node.classList.remove('message-update','is-update-complete');node.replaceChildren();}
+ function paint(text,value){clearTimeout(timer);node.dataset.updateActive='true';node.classList.add('message-update');node.replaceChildren();const row=document.createElement('span'),caption=document.createElement('span'),percent=document.createElement('span'),bar=document.createElement('progress');row.className='update-message-row';caption.className='update-message-caption';caption.textContent=text;percent.className='update-message-percent';percent.textContent=Number.isFinite(value)?Math.round(value)+'%':'';bar.max=100;bar.setAttribute('aria-label','应用更新进度');if(Number.isFinite(value))bar.value=value;row.append(caption,percent);node.append(row,bar);}
+ return {get active(){return active;},start(){active=true;node.classList.remove('is-update-complete');paint('正在更新…',0);},update(value){active=true;paint('正在更新…',Number.isFinite(value)?Math.min(99,Math.max(0,value)):undefined);},finish(text='更新完成',{hideAfter=0}={}){active=false;paint(text,100);node.classList.add('is-update-complete');if(hideAfter)timer=setTimeout(clear,hideAfter);},error(text){clear();node.textContent=text;timer=setTimeout(clear,3000);},cancel:clear};
+}

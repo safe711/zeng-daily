@@ -2,6 +2,7 @@ export function createNotifier(element,{setTimer=setTimeout,clearTimer=clearTime
   let timer=null;
   let revision=0;
   return (text)=>{
+    if(element.dataset?.updateActive==='true')return;
     if(/(?:已备份|已同步)\s*0\s*张/.test(String(text??'')))return;
     const current=++revision;
     if(timer!==null)clearTimer(timer);
