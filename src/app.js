@@ -401,7 +401,7 @@ function readRitualRoute() {
   reportOpen=false;
   if(kind)page='今日';
 }
-function reportCacheKey() {return `${reportGeneration}:${dayKey()}:${JSON.stringify(state.days[dayKey()]||{})}`;}
+function reportCacheKey() {return `${reportGeneration}:${accountClient.profile?.id}:${accountClient.profile?.name}:${dayKey()}:${JSON.stringify(state.days[dayKey()]||{})}`;}
 function paintPreparedReport(prepared) {
   for(const button of content.querySelectorAll('[data-action="share-day"],[data-action="copy-report"]'))button.disabled=!prepared.report.allComplete;
   const download=content.querySelector('[data-action="download-card"]');if(download)download.disabled=false;
@@ -414,10 +414,10 @@ function prepareReport() {
   if(preparedShare && preparedKey===key){paintPreparedReport(preparedShare);return Promise.resolve(preparedShare);}
   if(preparingShare && preparingKey===key)return preparingShare;
   preparingKey=key;
-  const report=ritualReport(structuredClone(state));
+  const report=ritualReport(structuredClone(state),dayKey(),accountClient.profile);
   const snapshot=JSON.stringify(state.days[report.date]||{});const epoch=reportGeneration;
   const pending=buildShareCard(report,getPhoto).then(prepared=>{
-    if(epoch===reportGeneration && JSON.stringify(state.days[report.date]||{})===snapshot && report.allComplete){
+    if(epoch===reportGeneration && accountClient.profile?.id===report.account?.id && JSON.stringify(state.days[report.date]||{})===snapshot && report.allComplete){
       archiveReport(prepared,nasToken,{upload:!staticHosting}).catch(error=>notify(staticHosting?`本机汇总保存未完成：${error.message}`:`汇总截图已生成，服务器 待同步：${error.message}`)).finally(()=>{paintArchiveStatus(report.date);renderReportArchive();});
     }
     if(reportCacheKey()!==key)return null;
@@ -427,7 +427,7 @@ function prepareReport() {
   return pending;
 }
 function renderReport() {
-  const report=ritualReport(state);
+  const report=ritualReport(state,dayKey(),accountClient.profile);
   content.innerHTML=`<button class="back-button" data-action="close-report">‹ 返回每日礼仪</button><h2>礼仪分享预览</h2><p>${report.date} · 完成 ${report.completed} / 4</p><p id="report-status" role="status">正在生成分享卡…</p><div id="share-image"></div><button data-action="share-day" disabled>分享至微信</button><button data-action="download-card" disabled>下载分享卡</button><button data-action="copy-report" disabled>复制请安文本</button><details><summary>查看分段文本与完成时间</summary><pre class="report-text">${escape(reportText(report))}</pre></details><p class="muted">分享卡会包含你的照片与文字。系统分享只打开选择菜单，不会自动发给任何联系人；此应用不能确认微信是否已发送。</p>`;
   content.querySelector('#report-status').insertAdjacentHTML('afterend','<p id="archive-status" role="status"></p>');paintArchiveStatus(report.date);
   prepareReport().catch(error=>{const status=content.querySelector('#report-status');if(status)status.textContent=`分享卡未生成：${error.message}`;});

@@ -1,6 +1,7 @@
-export const APP_VERSION='1.2.12';
+export const APP_VERSION='1.2.13';
 export const CLIENT_BUILD=`daily-shell-v${APP_VERSION}`;
 export const RELEASES=[
+  {version:'1.2.13',date:'2026-10-12',changes:['每日礼仪分享图和分享文本上方加入当前账号的奴隶编号与名称。','所有生成的分享截图统一透明logo、ZENG LEGACY、曾氏传承、标语、淡色分割线与曾家奴才专用说明，预留独立页脚空间。']},
   {version:'1.2.12',date:'2026-10-12',changes:['分享图页脚的logo与说明文字适度放大，使用透明龙纹logo去掉米色底框，保持淡色居中。']},
   {version:'1.2.11',date:'2026-10-12',changes:['任务分享图最高提升至2400像素宽，一般任务照片采用大图排列，洗鞋前后对比放大照片区域。','保留完整照片和PNG格式，按图片数量及文件大小调整输出，继续兼容微信分享与服务器上传限制。']},
   {version:'1.2.10',date:'2026-10-12',changes:['各礼仪的拍照预览下方新增返回礼仪界面按钮，采用当前照片后回到对应礼仪继续打卡。']},

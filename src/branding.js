@@ -1,8 +1,16 @@
 export const BRAND_LINE='曾家狗奴才专用，致力于一生服务曾家。';
 let logoPromise;
+export const SHARE_FOOTER_HEIGHT=280;
 export async function drawBrandFooter(context,width,height){
  let logo=null;if(typeof Image!=='undefined'){logoPromise??=new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('应用 Logo 加载失败，请联网更新后重试'));image.src=new URL('../assets/share-logo.png',import.meta.url).href;});logo=await logoPromise;}
- context.font='21px system-ui, sans-serif';const logoWidth=72,logoHeight=48,gap=14,textWidth=context.measureText(BRAND_LINE).width,left=(width-logoWidth-gap-textWidth)/2,top=height-65;const previous=context.globalAlpha;context.globalAlpha=.4;if(logo)context.drawImage(logo,left,top-32,logoWidth,logoHeight);context.fillStyle='#b0aaa0';context.fillText(BRAND_LINE,left+logoWidth+gap,top);context.globalAlpha=previous;
+ const previous={alpha:context.globalAlpha,font:context.font,fill:context.fillStyle};const top=height-245;
+ const centered=(text,y,font,alpha)=>{context.font=font;context.globalAlpha=alpha;context.fillStyle='#b0aaa0';context.fillText(text,(width-context.measureText(text).width)/2,y);};
+ context.font='bold 30px system-ui, sans-serif';const name='ZENG LEGACY',logoWidth=88,logoHeight=59,gap=16,nameWidth=context.measureText(name).width,left=(width-logoWidth-gap-nameWidth)/2;context.globalAlpha=.65;if(logo)context.drawImage(logo,left,top,logoWidth,logoHeight);context.fillStyle='#d4c4a5';context.fillText(name,left+logoWidth+gap,top+39);
+ centered('— 曾氏传承 —',top+92,'22px system-ui, sans-serif',.55);
+ centered('尊卑有序 · 忠诚为誓 · 荣耀永续',top+130,'18px system-ui, sans-serif',.45);
+ context.globalAlpha=.18;context.fillStyle='#b0aaa0';context.fillRect(width*.18,top+153,width*.64,1);
+ centered('曾家奴才专用，致力于一生服务曾家',top+194,'19px system-ui, sans-serif',.4);
+ context.globalAlpha=previous.alpha;context.font=previous.font;context.fillStyle=previous.fill;
 }
 
 // Identity is supplied by the signed-in server profile, never by editable biography.

@@ -1,16 +1,16 @@
-import {drawBrandFooter} from './branding.js';
+import {drawBrandFooter,SHARE_FOOTER_HEIGHT} from './branding.js';
 import {dayKey,RITUAL_KINDS,RITUAL_NAMES} from './model.js';
 import {ritualEvidence} from './ritual.js';
-export function ritualReport(state,date=dayKey()) {
+export function ritualReport(state,date=dayKey(),account=null) {
   const day=state.days[date] || {};
   const entries=RITUAL_KINDS.map(kind=>{
     const evidence=ritualEvidence(day,kind);
     return {kind,title:RITUAL_NAMES[kind],completed:day[kind]!==undefined,phrase:day[kind]!==undefined?(evidence.phrase||day[kind]):'尚未完成',completedTime:day[kind]!==undefined?(evidence.completedTime||'时间未记录（旧数据）'):'—',photoId:evidence.photoId||null};
   });
-  return {date,entries,completed:entries.filter(entry=>entry.completed).length,allComplete:entries.every(entry=>entry.completed)};
+  return {date,account:account?{id:String(account.id||''),name:String(account.name||'')}:null,entries,completed:entries.filter(entry=>entry.completed).length,allComplete:entries.every(entry=>entry.completed)};
 }
 export function reportText(report) {
-  return `ZENG LEGACY · ${report.date}\n每日礼仪 ${report.completed} / ${RITUAL_KINDS.length}\n\n`+report.entries.map(entry=>`${entry.title}\n${entry.phrase}\n完成时间：${entry.completedTime}`).join('\n\n');
+  return `ZENG LEGACY · ${report.date}\n${report.account?'奴隶编号：'+report.account.id+' · 名称：'+report.account.name+'\n':''}每日礼仪 ${report.completed} / ${RITUAL_KINDS.length}\n\n`+report.entries.map(entry=>`${entry.title}\n${entry.phrase}\n完成时间：${entry.completedTime}`).join('\n\n');
 }
 function wrapText(context,text,width) {
   const lines=[];
@@ -46,11 +46,12 @@ export async function buildShareCard(report,getPhoto) {
     const lines=wrapText(context,text,536);
     return {...entry,image,photoStatus,lines,height:Math.max(220,124+lines.length*34)};
   }));
-  canvas.height=320+blocks.reduce((sum,block)=>sum+block.height+20,0);
+  const accountLines=report.account?wrapText(context,'奴隶编号：'+report.account.id+' · 名称：'+report.account.name,740):[];const headerHeight=140+accountLines.length*32;canvas.height=headerHeight+blocks.reduce((sum,block)=>sum+block.height+20,0)+SHARE_FOOTER_HEIGHT;
   context.fillStyle='#131313';context.fillRect(0,0,canvas.width,canvas.height);
   context.fillStyle='#e4cfaa';context.font='bold 34px system-ui, sans-serif';context.fillText('ZENG LEGACY · 每日礼仪',40,62);
   context.fillStyle='#aaaab4';context.font='21px system-ui, sans-serif';context.fillText(`${report.date}    已完成 ${report.completed} / ${RITUAL_KINDS.length}`,40,105);
-  let top=140;
+  context.fillStyle='#d4cbb7';context.font='21px system-ui, sans-serif';accountLines.forEach((line,i)=>context.fillText(line,40,140+i*32));
+  let top=headerHeight;
   for(const block of blocks){
     context.fillStyle='#242731';context.fillRect(30,top,760,block.height);
     context.fillStyle='#f0f0f2';context.font='bold 25px system-ui, sans-serif';context.fillText(block.title,50,top+40);
