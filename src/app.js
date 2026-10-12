@@ -187,7 +187,7 @@ function render() {
   if(page==='家规')for(const fold of content.querySelectorAll('[data-fold]'))bindFoldout(fold,fold.dataset.fold);
   if(['今日','档案'].includes(page))unmountDaysMatter=mountDaysMatter(content,{getState:()=>state,commit,notify,getAccount:()=>accountClient.profile});
   if(page==='任务')prepareTaskShares();
-  if(page==='家规')unmountIdentity=mountIdentity(content,{getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
+  if(page==='家规')unmountIdentity=mountIdentity(content,{getAccount:()=>accountClient.profile,getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
   if(page==='档案'){
     unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile,commit,notify});
     renderProfilePortrait();
