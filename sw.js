@@ -1,5 +1,5 @@
-const CACHE = 'daily-shell-v1.0.9';
-const SHELL = ['./','./index.html','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png','./src/style.css','./src/app.js','./src/model.js','./src/storage.js','./src/hold.js','./src/ritual.js','./src/photos.js','./src/share.js','./src/reports.js','./src/subscription.js','./src/subscriptionview.js','./src/signature.js','./src/hosting.js','./src/integrations.js','./src/contractcrypto.js','./src/pushclient.js','./src/shoes.js','./src/shoecard.js','./src/shoeview.js','./src/notifications.js','./src/lanbackup.js','./src/updater.js','./src/version.js','./src/certificate.js','./nas-install.html','./assets/payment-qr.jpg','./src/rules.js','./src/tasks.js','./src/taskview.js','./src/taskmedia.js','./src/taskfiles.js','./src/branding.js','./src/identity.js','./src/accounts.js','./src/daycount.js','./src/daysmatter.js','./src/servant.js','./src/camera.js','./src/dialogs.js'];
+const CACHE = 'daily-shell-v1.0.10';
+const SHELL = ['./','./index.html','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png','./src/style.css','./src/app.js','./src/model.js','./src/storage.js','./src/hold.js','./src/ritual.js','./src/photos.js','./src/share.js','./src/reports.js','./src/subscription.js','./src/subscriptionview.js','./src/signature.js','./src/hosting.js','./src/integrations.js','./src/contractcrypto.js','./src/pushclient.js','./src/shoes.js','./src/shoecard.js','./src/shoeview.js','./src/notifications.js','./src/lanbackup.js','./src/updater.js','./src/version.js','./src/certificate.js','./nas-install.html','./assets/payment-qr.jpg','./src/rules.js','./src/tasks.js','./src/taskview.js','./src/taskmedia.js','./src/taskfiles.js','./src/branding.js','./src/identity.js','./src/accounts.js','./src/daycount.js','./src/daysmatter.js','./src/servant.js','./src/camera.js','./src/dialogs.js','./src/startup.js','./assets/startup.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL.map(path=>new Request(path,{cache:'reload'}))))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('daily-shell-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -14,7 +14,7 @@ self.addEventListener('fetch',event=>{
 const pushKinds=['morning','noon','evening','gratitude','subscription'];
 self.addEventListener('push',event=>{
   let kind='';try{const payload=event.data?.json();if(pushKinds.includes(payload?.kind))kind=payload.kind;}catch{}
-  event.waitUntil(self.registration.showNotification('日课',{body:'有一项日程待查看，请打开日课。',icon:new URL('icon-192.png',self.registration.scope).href,tag:`daily-${kind||'reminder'}`,data:{kind}}));
+  event.waitUntil(self.registration.showNotification('Zeng Legacy',{body:'有一项日程待查看，请打开日课。',icon:new URL('icon-192.png',self.registration.scope).href,tag:`daily-${kind||'reminder'}`,data:{kind}}));
 });
 self.addEventListener('notificationclick',event=>{
   event.notification.close();
