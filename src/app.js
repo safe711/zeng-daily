@@ -2,7 +2,7 @@ import {accountBrandLine} from './branding.js';
 import {collectionHtml,mountCollection} from './collection.js';
 import {replaceEvidencePhoto} from './photoedit.js';
 import {showStartup} from './startup.js';
-import {installDialogDismissal} from './dialogs.js';
+import {installDialogDismissal,disclaimerHtml} from './dialogs.js';
 import {openPhotoCamera,installPhotoCameras} from './camera.js';
 import {showWelcome,closeWelcome,servantProfileHtml,disasterServantsHtml,mountServantProfile} from './servant.js';
 import {captureDaysMatterShare,hasPendingDaysMatter,mountDaysMatter,dayRecordsHtml} from './daysmatter.js';
@@ -214,6 +214,7 @@ function render() {
     content.insertAdjacentHTML('beforeend','<section><h3>关闭后的提醒</h3><p id="push-status">正在检查自建发送服务…</p><button data-action="enable-push" disabled>开启后台提醒</button><button data-action="test-push" disabled>发送测试提醒</button><button data-action="stop-push" disabled>停止此设备提醒</button><p class="muted">锁屏仅显示“日课”。系统权限、网络和专注模式可能影响送达，不保证精确准时。仅使用 服务器/Windows 自建发送服务。</p></section>');
     paintPushStatus();
   }
+  if(page==='隐私')content.insertAdjacentHTML('beforeend','<section class="privacy-disclaimer"><button type="button" data-action="disclaimer">免责声明</button></section>'+disclaimerHtml());
   if(page==='档案')renderPhotoAlbum();
   if(staticHosting)for(const control of content.querySelectorAll('[data-action="sync-photos"],[data-action="sync-media"],[data-action="sync-photo"]'))control.remove();
   if(page==='今日'&&!ritualKind&&!reportOpen){
@@ -455,6 +456,8 @@ document.addEventListener('click',async event=>{
   try {
     if(button.dataset.page) {archiveEditing=false;discardUnusedPhoto();page=button.dataset.page;ritualKind=null;reportOpen=false;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':page==='家规'?'#rules':''));render();window.scrollTo(0,0);return;}
     const action=button.dataset.action;
+    if(action==='disclaimer'){content.querySelector('#role-disclaimer').showModal();return;}
+    if(action==='close-disclaimer'){content.querySelector('#role-disclaimer').close();return;}
     if(action==='release-log'){document.querySelector('#release-log').showModal();return;}
     if(action==='close-release-log'){document.querySelector('#release-log').close();return;}
     if(action==='certificate-guide'){document.querySelector('#certificate-guide').showModal();return;}
