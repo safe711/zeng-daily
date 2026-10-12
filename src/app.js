@@ -1,3 +1,4 @@
+import {installPhotoCameras} from './camera.js';
 import {showWelcome,closeWelcome,servantProfileHtml,disasterServantsHtml,mountServantProfile} from './servant.js';
 import {captureDaysMatterShare,hasPendingDaysMatter,mountDaysMatter,dayRecordsHtml} from './daysmatter.js';
 import {createAccountClient} from './accounts.js';
@@ -63,6 +64,7 @@ function usedRitualPhoto(photo){return RITUAL_KINDS.some(kind=>ritualEvidence(st
 function discardUnusedPhoto(){if(currentPhoto&&!usedRitualPhoto(currentPhoto)){currentPhoto=null;photoKey='';}}
 let photoKey='';
 let photoLoading=false;
+let cameraFacing='environment';
 let cameraStream=null;
 let cameraRequest=0;
 let cameraStarting=false;
@@ -114,7 +116,7 @@ function commit(change,rerender=true) {
   if(ritualReport(state).allComplete)prepareReport().catch(error=>notify(`汇总图片待生成：${error.message}`));
 }
 function isAccountLocked(){try{return localStorage.getItem('daily-account-locked')===accountClient.profile?.id;}catch{return false;}}
-function setHidden(value){hidden=value;try{if(value&&accountClient.profile?.id)localStorage.setItem('daily-account-locked',accountClient.profile.id);else localStorage.removeItem('daily-account-locked');}catch{}if(value)closeWelcome();}
+function setHidden(value){hidden=value;try{if(value&&accountClient.profile?.id)localStorage.setItem('daily-account-locked',accountClient.profile.id);else localStorage.removeItem('daily-account-locked');}catch{}if(value){closeWelcome();stopCamera();}}
 function removeLock(){lockScreen?.remove();lockScreen=null;content.inert=false;content.style.visibility='';document.querySelector('header').style.visibility='';document.querySelector('nav').style.visibility='';}
 function paintLock(){closeWelcome();for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();content.inert=true;content.style.visibility='hidden';document.querySelector('header').style.visibility='hidden';document.querySelector('nav').style.visibility='hidden';if(lockScreen)return;lockScreen=document.createElement('div');lockScreen.className='content-lock';lockScreen.setAttribute('role','dialog');lockScreen.setAttribute('aria-modal','true');lockScreen.setAttribute('aria-label','内容解锁');document.body.append(lockScreen);lockScreen.addEventListener('click',e=>e.stopPropagation());accountClient.unlockView(lockScreen,()=>{setHidden(false);removeLock();render();});}
 function bindFoldout(fold,key){const storeKey='daily-fold:'+accountClient.profile.id+':'+key;try{fold.open=localStorage.getItem(storeKey)==='open';}catch{}fold.addEventListener('toggle',()=>{try{localStorage.setItem(storeKey,fold.open?'open':'closed');}catch{}if(!fold.open)for(const video of fold.querySelectorAll('video'))video.pause();});}
@@ -232,7 +234,7 @@ function renderRitual() {
     content.lastElementChild.textContent=staticHosting?'请安记录先保存在手机，回家后连同照片自动同步账号历史。':'请安记录留在本机，照片可同步至你的 服务器。';
     content.querySelector('.ritual-detail').insertAdjacentHTML('beforeend',`<div class="ritual-instruction"><p>${escape(ritualInstruction(kind))}</p><blockquote>${escape(done?(evidence.phrase||saved):ritualGreeting(kind,date))}</blockquote>${done?`<p>完成时间：${escape(evidence.completedTime||'时间未记录（旧数据）')}</p>`:''}<small>请自行朗读与完成；应用不录音，也不自动判断动作。</small></div>`);
     const photoPanel=document.createElement('section');photoPanel.className='photo-checkin';
-    photoPanel.innerHTML=`<h3>拍照打卡</h3><p id="photo-status" role="status">${photoStatus(currentPhoto)}</p><div id="photo-preview"></div>${!done?`<video id="ritual-camera" autoplay playsinline muted hidden aria-label="实时相机画面"></video><button data-action="start-camera" ${state.settings.paused?'disabled':''}>${currentPhoto?'重新拍照':'打开相机'}</button><button data-action="take-photo" hidden>拍下并预览</button><button data-action="stop-camera" hidden>取消拍摄</button>`:''}${!done&&currentPhoto?'<button data-action="discard-photo">取消使用这张照片</button>':''}${currentPhoto?`<button data-action="download-photo" data-id="${escape(currentPhoto.id)}">下载照片</button>${!staticHosting&&usedRitualPhoto(currentPhoto)?`<button data-action="sync-photo" data-id="${escape(currentPhoto.id)}">${currentPhoto.status==='uploaded'?'检查同步状态':'上传至 服务器'}</button>`:''}`:''}<p class="muted">${done?'旧记录无照片时不会自动补造。':'拍照后先预览，长按完成礼仪才保存；取消或离开不会保存未使用照片。'} ${staticHosting?'完成礼仪后照片才保存到手机，回家自动备份至 服务器。':'服务器 上传状态以实际结果为准。'}</p>`;
+    photoPanel.innerHTML=`<h3>拍照打卡</h3><p id="photo-status" role="status">${photoStatus(currentPhoto)}</p><div id="photo-preview"></div>${!done?`<div class="camera-stage ritual-camera-stage" hidden><video id="ritual-camera" autoplay playsinline muted hidden aria-label="实时相机画面"></video><button type="button" class="camera-flip" data-action="switch-camera" hidden>切换前置</button></div><button data-action="start-camera" ${state.settings.paused?'disabled':''}>${currentPhoto?'重新拍照':'打开相机'}</button><button data-action="take-photo" hidden>拍下并预览</button><button data-action="stop-camera" hidden>取消拍摄</button>`:''}${!done&&currentPhoto?'<button data-action="discard-photo">取消使用这张照片</button>':''}${currentPhoto?`<button data-action="download-photo" data-id="${escape(currentPhoto.id)}">下载照片</button>${!staticHosting&&usedRitualPhoto(currentPhoto)?`<button data-action="sync-photo" data-id="${escape(currentPhoto.id)}">${currentPhoto.status==='uploaded'?'检查同步状态':'上传至 服务器'}</button>`:''}`:''}<p class="muted">${done?'旧记录无照片时不会自动补造。':'拍照后先预览，长按完成礼仪才保存；取消或离开不会保存未使用照片。'} ${staticHosting?'完成礼仪后照片才保存到手机，回家自动备份至 服务器。':'服务器 上传状态以实际结果为准。'}</p>`;
     const note=content.querySelector('.ritual-note');
     if(note)note.replaceWith(photoPanel);else content.querySelector('.ritual-action').before(photoPanel);
     if(currentPhoto){const image=document.createElement('img');image.alt='本次请安打卡照片';const url=URL.createObjectURL(currentPhoto.blob);photoUrls.push(url);image.src=url;photoPanel.querySelector('#photo-preview').append(image);}
@@ -273,14 +275,16 @@ function renderRitual() {
   button.addEventListener('blur',cancel);
   button.addEventListener('contextmenu',event=>event.preventDefault());
 }
-function stopCamera() {
+function stopCamera(reset=true) {
+  if(reset)cameraFacing='environment';
+  const stage=document.querySelector('.ritual-camera-stage');if(stage)stage.hidden=true;
   cameraRequest++;
   cameraStarting=false;
   if(cameraStream)cameraStream.getTracks().forEach(track=>track.stop());
   cameraStream=null;
   const video=document.querySelector('#ritual-camera');
   if(video){video.srcObject=null;video.hidden=true;}
-  for(const action of ['take-photo','stop-camera']){const control=document.querySelector(`[data-action="${action}"]`);if(control)control.hidden=true;}
+  for(const action of ['take-photo','stop-camera','switch-camera']){const control=document.querySelector(`[data-action="${action}"]`);if(control)control.hidden=true;}
 }
 function photoStatus(photo) {
   if(!photo)return photoLoading?'正在读取本机照片…':'尚未拍照 · 完成按钮未解锁';
@@ -288,7 +292,7 @@ function photoStatus(photo) {
   if(staticHosting)return mediaStatus(photo,true);
   return photo.status==='uploaded'?'照片已保存到 服务器 · 日课请安':'照片已保存在本机 · 服务器 待同步';
 }
-async function startCamera() {
+async function startCamera(facing=cameraFacing,exact=false) {
   if(state.settings.paused)throw Error('日课已暂停');
   if(cameraStarting || cameraStream)return;
   if(!isSecureContext || !navigator.mediaDevices?.getUserMedia)throw Error('相机需要可信 HTTPS；电脑可用 localhost 预览');
@@ -296,16 +300,18 @@ async function startCamera() {
   if(!video)throw Error('请先打开礼仪详情页');
   const request=++cameraRequest;cameraStarting=true;
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:exact?{exact:facing}:{ideal:facing}},audio:false});
     if(request!==cameraRequest || !video.isConnected || document.hidden){stream.getTracks().forEach(track=>track.stop());return;}
-    cameraStream=stream;video.srcObject=stream;video.hidden=false;await video.play();
-    for(const action of ['take-photo','stop-camera']){const control=document.querySelector(`[data-action="${action}"]`);if(control)control.hidden=false;}
-    notify('相机已打开，点击“拍下并保存”打卡');
+    cameraStream=stream;cameraFacing=stream.getVideoTracks()[0]?.getSettings().facingMode||facing;video.srcObject=stream;video.hidden=false;video.classList.toggle('camera-front',cameraFacing==='user');const stage=video.closest('.camera-stage');if(stage)stage.hidden=false;await video.play();const flip=document.querySelector('[data-action="switch-camera"]');if(flip){flip.textContent=cameraFacing==='user'?'切换后置':'切换前置';flip.setAttribute('aria-label',flip.textContent+'摄像头');}
+    for(const action of ['take-photo','stop-camera','switch-camera']){const control=document.querySelector(`[data-action="${action}"]`);if(control)control.hidden=false;}
+    notify('相机已打开，点击“拍下并预览”打卡');
   }catch(error){
+    if(request!==cameraRequest)return;
     stopCamera();
     throw Error(error.name==='NotAllowedError'?'未获得相机权限，请允许相机访问后重试':error.name==='NotFoundError'?'此设备没有可用相机；请在 iPhone 上拍照':error.name==='NotReadableError'?'相机正在被其他应用占用，请稍后再试':'相机打开失败，请检查权限与 HTTPS 连接');
   }finally{if(request===cameraRequest)cameraStarting=false;}
 }
+async function switchCamera(){if(cameraStarting||photoCapturing||!cameraStream)return;const previous=cameraFacing,next=previous==='user'?'environment':'user';stopCamera(false);try{await startCamera(next,true);}catch{notify('无法切换所选摄像头，正在恢复原相机');await startCamera(previous);}}
 async function takePhoto() {
   if(photoCapturing)return;
   if(state.settings.paused)throw Error('日课已暂停');
@@ -517,6 +523,7 @@ document.addEventListener('click',async event=>{
       if(!navigator.clipboard?.writeText)throw Error('此设备无法复制，请展开分段文本手动复制');await navigator.clipboard.writeText(prepared.text);notify('请安文本已复制，可粘贴至微信');return;
     }
     if(action==='start-camera')await startCamera();
+    if(action==='switch-camera')await switchCamera();
     if(action==='take-photo')await takePhoto();
     if(action==='stop-camera')stopCamera();
     if(action==='download-photo'){
@@ -597,3 +604,5 @@ if('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.regi
 pushClient.refresh().then(configuration=>{if(!configuration)return;if(configuration.photosConfigured||configuration.reportsConfigured||configuration.shoesConfigured)nasToken='private-session';if(page==='订阅'&&!state.subscription.contractId)render();if(nasToken)retryMedia();});
 
 if(staticHosting){lanBackup.run();window.addEventListener("online",()=>lanBackup.run());document.addEventListener("visibilitychange",()=>{if(!document.hidden)lanBackup.run();});setInterval(()=>{if(!document.hidden)lanBackup.run();},30000);}
+
+installPhotoCameras(content,{notify,blocked:()=>hidden||state.settings.paused,owner:()=>accountClient.profile?.id||''});
