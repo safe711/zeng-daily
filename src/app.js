@@ -30,7 +30,7 @@ import {buildTaskCard,syncTaskMedia} from './taskmedia.js';
 import {shareTaskFile} from './taskfiles.js';
 import {buildShoeCard} from './shoecard.js';
 import {getShoePhoto} from './photos.js';
-import {houseRulesHtml} from './rules.js';
+import {familyPageHtml} from './family.js';
 const startupReady=showStartup();
 installDialogDismissal();
 captureDaysMatterShare();
@@ -143,7 +143,7 @@ function render() {
   photoUrls=[];
   if(!accountClient.loggedIn){document.querySelector('nav').innerHTML='';document.querySelector('header small').textContent='Zeng Legacy · 身份验证';accountClient.loginView(content);content.insertAdjacentHTML('beforeend','<p class="muted">当前版本 '+APP_VERSION+'</p><button data-action="release-log">更新日志</button>'+releaseLogHtml()+certificateGuideHtml());return;}
   document.querySelector('header small').textContent=accountClient.profile.identity+'（'+accountClient.profile.name+'）';
-  document.querySelector('nav').innerHTML = ['家规','今日','任务','积分','档案','订阅','隐私'].map(name=>`<button data-page="${name}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name}</button>`).join('');
+  document.querySelector('nav').innerHTML = ['家规','今日','任务','积分','档案','订阅','隐私'].map(name=>`<button data-page="${name}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name==='家规'?'曾氏':name}</button>`).join('');
   document.querySelector('h1').textContent = 'Zeng Legacy';
 
   const today = state.days[dayKey()] || {};
@@ -151,7 +151,7 @@ function render() {
   const status=accountClient.connected?'<span data-server-connection class="network-online">在线</span>':'<span data-server-connection class="network-offline">离线</span>';
   const heading = `<div class="eyebrow account-presence">${escape(accountClient.profile.name)} · ${status}<time datetime="${dayKey()}">${dayKey()}</time>${paused?' · 已暂停':''}</div><h2>${page==='今日'?'每日礼仪':page==='订阅'?'订阅挡灾':page}</h2>`;
   let body = '';
-  if(page==='家规')body=houseRulesHtml();
+  if(page==='家规')body=familyPageHtml();
   if(page==='今日') {
     const completed=RITUAL_KINDS.filter(kind=>today[kind]!==undefined).length;
     const earned=state.ledger.filter(entry=>entry.date===dayKey()).reduce((total,entry)=>total+entry.points,0);
@@ -174,7 +174,7 @@ function render() {
   if(page==='档案')body=dayRecordsHtml(state,false,accountClient.profile)+body.replace('</section><section><h3>礼仪照片', '</section><section class="fixed-profile parents-profile" aria-labelledby="parents-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="parents-profile-title">主子：曾仪父母</h3><div class="parents-photo-blank" role="img" aria-label="曾仪父母照片位置，暂时留白"></div><dl><div><dt>生日</dt><dd>未知</dd></div><div><dt>专属奴隶</dt><dd><span class="parents-servant">挡灾奴01　于耕宝</span><span class="parents-servant">挡灾奴02　杜其香</span></dd></div></dl><h4>简介</h4><p>享用曾家挡灾奴01、02号。每个月将自身灾祸出售给挡灾奴，收取钱财并换取自己平安。将自身灾祸赐予挡灾奴。</p></section>'+servantProfileHtml(state,accountClient.profile)+disasterServantsHtml()+'<section><h3>礼仪照片');
   content.innerHTML = (page==='家规'?'':heading) + body;
   if(page==='档案')archiveFoldouts();
-  if(page==='家规'){const fold=content.querySelector('[data-fold="rules-contract"]');if(fold)bindFoldout(fold,'rules-contract');}
+  if(page==='家规')for(const fold of content.querySelectorAll('[data-fold]'))bindFoldout(fold,fold.dataset.fold);
   if(['今日','档案'].includes(page))unmountDaysMatter=mountDaysMatter(content,{getState:()=>state,commit,notify,getAccount:()=>accountClient.profile});
   if(page==='任务')prepareTaskShares();
   if(page==='家规')unmountIdentity=mountIdentity(content,{getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
