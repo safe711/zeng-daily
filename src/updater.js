@@ -1,52 +1,15 @@
 import {CLIENT_BUILD} from './version.js';
+import {createProgressTracker} from './progress.js';
 export {CLIENT_BUILD} from './version.js';
-
-export function workerBuild(worker){
-  if(!worker)return Promise.resolve(null);
-  return new Promise(resolve=>{
-    const channel=new MessageChannel();
-    const finish=value=>{clearTimeout(timer);channel.port1.close();resolve(value);};
-    const timer=setTimeout(()=>finish(null),1500);
-    channel.port1.onmessage=event=>finish(event.data?.build??null);
-    try{worker.postMessage({type:'GET_BUILD'},[channel.port2]);}catch{finish(null);}
-  });
-}
-
-export function createUpdater({notify,serviceWorker=navigator.serviceWorker,fetcher=fetch,readBuild=workerBuild,reload=()=>location.reload(),delay=ms=>new Promise(resolve=>setTimeout(resolve,ms)),now=()=>Date.now(),clientBuild=CLIENT_BUILD}={}){
-  let busy=false;
-  return async()=>{
-    if(busy)return;
-    busy=true;
-    try{
-      if(!serviceWorker)throw Error('此浏览器暂不支持应用更新');
-      const response=await fetcher(`./sw.js?check=${now()}`,{cache:'no-store',signal:AbortSignal.timeout(10000)});
-      if(!response.ok)throw Error('无法连接更新服务器，请稍后重试');
-      const target=(await response.text()).match(/const CACHE\s*=\s*['"]([^'"]+)['"]/)?.[1];
-      if(!target)throw Error('服务器版本信息异常，请稍后重试');
-      if(target===clientBuild){notify('已是最新版本');return;}
-      const registration=await serviceWorker.getRegistration();
-      if(!registration)throw Error('离线服务尚未安装，请重新打开日课');
-      notify('发现新版，正在更新…');
-      await registration.update();
-      const deadline=now()+45000;
-      let requested=null;
-      while(now()<deadline){
-        const controller=serviceWorker.controller;
-        if(await readBuild(controller)===target){
-          notify('更新成功');
-          await delay(3000);
-          reload();
-          return;
-        }
-        const waiting=registration.waiting;
-        if(waiting&&waiting!==requested&&await readBuild(waiting)===target){
-          requested=waiting;
-          waiting.postMessage({type:'SKIP_WAITING'});
-        }
-        await delay(200);
-      }
-      throw Error('更新尚未完成，请保持联网后重试');
-    }catch(error){notify(error.name==='TimeoutError'?'连接更新服务器超时，请稍后重试':`更新未完成：${error.message}`);}
-    finally{busy=false;}
-  };
+export function workerBuild(worker){if(!worker)return Promise.resolve(null);return new Promise(resolve=>{const channel=new MessageChannel();const finish=value=>{clearTimeout(timer);channel.port1.close();resolve(value);};const timer=setTimeout(()=>finish(null),1500);channel.port1.onmessage=event=>finish(event.data?.build??null);try{worker.postMessage({type:'GET_BUILD'},[channel.port2]);}catch{finish(null);}});}
+export function restartApp(build){const url=new URL(location.href);url.searchParams.set('app-build',build);location.replace(url.href);}
+export function createUpdater({notify,serviceWorker=navigator.serviceWorker,fetcher=fetch,readBuild=workerBuild,reload=restartApp,delay=ms=>new Promise(resolve=>setTimeout(resolve,ms)),now=()=>Date.now(),clientBuild=CLIENT_BUILD,progress=createProgressTracker({id:'app-update',title:'应用更新'})}={}){
+ let busy=false,target=null;
+ serviceWorker?.addEventListener?.('message',event=>{const p=event.data;if(!busy||p?.type!=='UPDATE_PROGRESS'||p.build!==target)return;if(p.phase==='failed'){progress.error('更新下载未完成，请保持联网后重试');return;}progress.update(p.total?p.done/p.total*100:undefined,p.done===p.total?'资源已就绪，正在启用新版…':`正在更新 ${p.done} / ${p.total}`);});
+ return async()=>{if(busy)return;busy=true;progress.start('正在检查更新…');try{
+  if(!serviceWorker)throw Error('此浏览器暂不支持应用更新');const response=await fetcher(`./sw.js?check=${now()}`,{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error('无法连接更新服务器，请稍后重试');target=(await response.text()).match(/const CACHE\s*=\s*['"]([^'"]+)['"]/)?.[1];if(!target)throw Error('服务器版本信息异常，请稍后重试');if(target===clientBuild){progress.cancel();notify('已是最新版本');return;}
+  const registration=await serviceWorker.getRegistration();if(!registration)throw Error('离线服务尚未安装，请重新打开应用');notify('发现新版，正在更新…');progress.start('正在准备新版…');await registration.update();const deadline=now()+90000;let requested=null;
+  while(now()<deadline){if(await readBuild(serviceWorker.controller)===target){notify('更新成功');progress.finish('更新完成，正在重新打开…',{hideAfter:0,onAction:()=>reload(target),actionLabel:'立即重新打开'});await delay(700);reload(target);return;}const waiting=registration.waiting,candidate=registration.installing||waiting;candidate?.postMessage({type:'GET_PROGRESS'});if(waiting&&waiting!==requested&&await readBuild(waiting)===target){requested=waiting;progress.update(100,'下载完成，正在启用新版…');waiting.postMessage({type:'SKIP_WAITING'});}await delay(150);}
+  throw Error('更新尚未完成，请保持联网后重试');
+ }catch(error){const message=error.name==='TimeoutError'?'连接更新服务器超时，请稍后重试':`更新未完成：${error.message}`;notify(message);progress.error(message);}finally{busy=false;target=null;}};
 }

@@ -11,7 +11,7 @@ export async function fetchAccountServer(path,options,{fetcher=fetch,timeout=150
   const controller=new AbortController(),small=/\/(login|me|unlock\/password|unlock\/options)$/.test(path);
   const timer=small?setTimeout(()=>controller.abort(new DOMException('Connection timeout','TimeoutError')),Math.min(3000,timeout)):null;
   try{
-   const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(timeout)]);
+   const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(timeout),...(options.signal?[options.signal]:[])]);
    const response=await fetcher(origin+path,{...options,signal});
    active=origin;try{globalThis.localStorage?.setItem(key,origin);}catch{}
    return response;
