@@ -164,3 +164,61 @@ dialog.content-lock>section.account-unlock{flex:none;max-width:330px;width:100%;
 .calendar-camera-icon{position:absolute;right:4px;top:4px;width:11px;height:11px;color:#f3d6a7;pointer-events:none}.calendar-task-link{font-size:12px;padding:8px 14px;margin:8px 0 0}.calendar-day-details .calendar-ritual-row{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:12px;align-items:start}.calendar-ritual-copy{min-width:0}.calendar-ritual-copy>small{font-size:11px}.calendar-ritual-note{margin:10px 0 0}.calendar-ritual-note>summary{font-size:11px;padding:4px 0;color:#918b80}.calendar-ritual-row figure{margin:0;text-align:center}.calendar-ritual-thumbnail{display:block;width:100%;padding:0;margin:0;border:0;min-height:0;background:transparent}.calendar-day-details .calendar-ritual-thumbnail img{width:84px;height:84px;object-fit:cover;max-height:none;margin:0;border-radius:7px}.calendar-ritual-row figcaption{margin-top:7px;font-size:9px;line-height:1.6;color:#918b80;overflow-wrap:anywhere}.calendar-no-photo{display:grid;place-items:center;min-height:70px;border:1px dashed #ffffff14;border-radius:7px;font-size:10px;color:#77746f}.calendar-day-details .calendar-ritual-row.is-photo-expanded{grid-template-columns:1fr}.calendar-ritual-row.is-photo-expanded figure{width:100%}.calendar-day-details .is-photo-expanded .calendar-ritual-thumbnail img{width:100%;height:auto;max-height:420px;object-fit:contain}.calendar-ritual-row.is-photo-expanded figcaption{font-size:11px}
 
 .photo-readonly-dialog .camera-review{justify-content:center}.photo-readonly-dialog .camera-review button{flex:0 1 180px}.shoe-completed-note p{font-size:13px;line-height:1.8}
+
+/* Owner and slave accounts share the same portrait dimensions. */
+.owner-portrait::after{display:none!important}
+.owner-portrait{position:relative;border-radius:50%;overflow:visible}
+.owner-portrait>img{border-radius:50%;width:100%;height:100%;object-fit:cover}
+.owner-crown{position:absolute;right:5px;top:4px;width:30px;height:30px;border-radius:50%;background:#332811;border:1px solid #d9b86f;display:grid;place-items:center;color:#efca70;z-index:2}
+.owner-crown svg{width:22px;height:22px;fill:currentColor}
+.owner-member>summary{display:flex!important;align-items:center;gap:16px;min-height:122px}
+.owner-member-avatar{width:68px!important;height:68px!important;min-width:68px;margin:0!important;border-radius:50%;background:#353535;overflow:visible}
+.owner-member-avatar>img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.owner-member-avatar::after{width:22px;height:22px;font-size:16px;top:0;right:0}
+.owner-member .family-panel-body{padding:16px;min-width:0}
+.owner-member .loyalty-line{margin-top:0}
+.owner-member .calendar-cell{padding:0!important}
+.owner-review{padding:12px 0 18px;text-align:center;border-bottom:1px solid #ffffff12;margin-bottom:16px}
+.owner-review>small{color:#bbae94;display:block;margin-bottom:10px}
+.owner-review>div{display:flex;justify-content:center;gap:16px}
+.owner-review button{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:65px;padding:9px 7px;background:#ffffff06;border:1px solid #ffffff15}
+.owner-review button span{font-size:27px;line-height:1.1}
+.owner-review button small{font-size:12px;color:#bcb7ad}
+.owner-review button[aria-pressed=true]{border-color:#c3a768;background:#c3a76820}
+.owner-review p{font-size:12px;color:#b3ae9f;min-height:1em}
+.owner-task-row{border:1px solid #ffffff1a;border-radius:12px;margin:12px 0;overflow:hidden}
+.owner-task-row>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 14px;cursor:pointer;list-style:none}
+.owner-task-row>summary>span{display:flex;flex-direction:column;min-width:0;gap:5px}
+.owner-task-row>summary strong{overflow-wrap:anywhere}
+.owner-task-row>summary small{font-size:12px;color:#aaa69d}
+.owner-task-row>summary em{font-size:12px;white-space:nowrap;font-style:normal}
+.owner-task-body{padding:0 14px 18px}
+.owner-shoe-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.owner-photo-button{padding:0;border:0;background:transparent;width:100%;margin:8px 0}
+.owner-photo-button img{display:block;width:100%;max-height:280px;object-fit:contain;border-radius:8px}
+.owner-task-info dl div,.owner-subscription dl div{display:flex;justify-content:space-between;gap:12px;padding:6px 0}
+.owner-task-info dd,.owner-subscription dd{margin:0;text-align:right;overflow-wrap:anywhere}
+.owner-gift-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;margin:8px 0}
+.owner-gift-row .gift-pixel{width:40px;height:40px}
+.owner-gift-row span{display:flex;flex-direction:column}
+.owner-gift-row small{font-size:12px;color:#a9a49c}
+.owner-detail-dialog [data-document-image] img,.gift-detail-photo img,[data-gift-photo] img{display:block;max-width:100%;max-height:65vh;object-fit:contain;margin:auto}
+.owner-detail-dialog video{max-width:100%;max-height:65vh}
+.gift-dialog form,.owner-detail-dialog form,.gift-dialog label,.owner-detail-dialog label{min-width:0;max-width:100%}
+.gift-dialog input[type=date],.owner-detail-dialog input[type=date],.owner-detail-dialog input[type=datetime-local]{box-sizing:border-box;min-width:0;width:100%;max-width:100%}
+.gift-dialog .gift-dialog-content{overflow-x:hidden}
+.owner-detail-dialog .task-schedule{grid-template-columns:minmax(0,1fr);gap:12px}
+.owner-detail-dialog .gift-icon-options{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.owner-detail-dialog .gift-icon-options label{flex:1;min-width:42px}
+.account-event-dialog.event-normal{border-color:#629d76}
+.account-event-dialog.event-minor{border-color:#e4bf65}
+.account-event-dialog.event-severe{border-color:#cc6767}
+.event-normal .contract-viewer-header h3{color:#9ccba4}
+.event-minor .contract-viewer-header h3{color:#f1d084}
+.event-severe .contract-viewer-header h3{color:#ee9696}
+nav button.has-new-review{position:relative}
+nav button.has-new-review::after,.review-red-dot{content:'';position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#f45d64;box-shadow:0 0 0 2px #131313}
+.review-red-dot{z-index:2}
+.calendar-cell:has(.review-red-dot) .calendar-camera-icon{right:12px}
+.slave-review-details{border:1px solid #7e5c34;border-radius:10px;padding:12px}
+.slave-review-details small{display:block;font-size:12px;color:#bcb5a5}

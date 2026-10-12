@@ -1,3 +1,4 @@
+import {isOwner,mountOwner,ownerAvatarHtml,createRoleController} from './owner.js';
 import {mountFamilyHeaders} from './familyheaders.js';
 import {scoreCalendarHtml,mountScoreCalendar,calendarKeepsView} from './calendar.js';
 import {accountBrandLine} from './branding.js';
@@ -51,8 +52,12 @@ let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
 const lanBackup=createLanBackup({photos:async()=>(await listPhotos()).filter(usedRitualPhoto),records:()=>state.shoeRecords,tasks:()=>state.tasks,notify,getAccountToken:()=>accountClient?.token});
-const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onAuthenticated:()=>setHidden(false),onConnection:paintConnection,onWelcome:profile=>{startupReady.then(()=>{if(!hidden&&accountClient.loggedIn&&accountClient.profile?.id===profile.id){notify('');showWelcome(profile,state.servantProfile);}});},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){archiveEditing=false;page=hasPendingDaysMatter()?'档案':'今日';hidden=isAccountLocked();ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
+const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onAuthenticated:()=>setHidden(false),onConnection:paintConnection,onWelcome:profile=>{startupReady.then(()=>{if(!hidden&&accountClient.loggedIn&&accountClient.profile?.id===profile.id){notify('');showWelcome(profile,state.servantProfile);if(isOwner(profile))ownerPortrait(document.body);}});},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){archiveEditing=false;page=isOwner(accountClient.profile)?'家规':hasPendingDaysMatter()?'档案':'今日';roleController.reset();setTimeout(()=>roleController.refresh(),0);hidden=isAccountLocked();ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
 let page = '今日';
+let unmountOwner=()=>{};
+const roleController=createRoleController({client:accountClient,getState:()=>state,isVisible:()=>!hidden&&!document.hidden,notify,onBadge:reviews=>{const nav=document.querySelector('nav [data-page="积分"]');if(nav){nav.classList.toggle('has-new-review',reviews.some(r=>r.unread));}for(const cell of content.querySelectorAll('[data-calendar-date]')){cell.querySelector('.review-red-dot')?.remove();if(reviews.some(r=>r.unread&&r.date===cell.dataset.calendarDate))cell.insertAdjacentHTML('beforeend','<i class="review-red-dot"></i>');}}});
+async function ownerPortrait(host){const owner=accountClient.profile?.id;try{let a=await getSubscriptionMedia('master-profile-photo');if(!a?.blob){const blob=await lanBackup.readProfilePhoto();a={id:'master-profile-photo',role:'profile-photo',blob};await saveSubscriptionMedia(a);}if(accountClient.profile?.id!==owner||!host.isConnected)return;for(const holder of host.querySelectorAll('[data-owner-photo]')){const img=document.createElement('img'),url=URL.createObjectURL(a.blob);photoUrls.push(url);img.src=url;img.alt='曾仪主子';holder.prepend(img);holder.querySelector('.avatar-silhouette')?.remove();}}catch{}}
+setInterval(()=>roleController.refresh(),30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)roleController.refresh();});
 let archiveEditing=false;
 let accountWasLoggedIn=false;
 let hidden = isAccountLocked();
@@ -128,7 +133,7 @@ function commit(change,rerender=true) {
   if(ritualReport(state).allComplete)prepareReport().catch(error=>notify(`汇总图片待生成：${error.message}`));
 }
 function isAccountLocked(){try{return localStorage.getItem('daily-account-locked')===accountClient.profile?.id;}catch{return false;}}
-function setHidden(value){hidden=value;try{if(value&&accountClient.profile?.id)localStorage.setItem('daily-account-locked',accountClient.profile.id);else localStorage.removeItem('daily-account-locked');}catch{}if(value){closeWelcome();stopCamera();}}
+function setHidden(value){hidden=value;if(value)roleController.reset();else setTimeout(()=>roleController.refresh(),0);try{if(value&&accountClient.profile?.id)localStorage.setItem('daily-account-locked',accountClient.profile.id);else localStorage.removeItem('daily-account-locked');}catch{}if(value){closeWelcome();stopCamera();}}
 function paintConnection(){const online=accountClient.connected;for(const node of document.querySelectorAll('[data-server-connection]')){node.textContent=online?'在线':'离线';node.className=online?'network-online':'network-offline';}}
 function removeLock(){document.body.classList.remove('is-account-locked');if(lockScreen?.open)lockScreen.close();lockScreen?.remove();lockScreen=null;content.inert=false;content.style.visibility='';document.querySelector('header').style.visibility='';document.querySelector('nav').style.visibility='';}
 function paintLock(){document.body.classList.add('is-account-locked');closeWelcome();for(const dialog of document.querySelectorAll('dialog[open]:not(.content-lock)'))dialog.close();content.inert=true;content.style.visibility='hidden';document.querySelector('header').style.visibility='hidden';document.querySelector('nav').style.visibility='hidden';if(lockScreen){if(!lockScreen.open)lockScreen.showModal();return;}lockScreen=document.createElement('dialog');lockScreen.className='content-lock';lockScreen.setAttribute('role','dialog');lockScreen.setAttribute('aria-modal','true');lockScreen.setAttribute('aria-label','内容解锁');document.body.append(lockScreen);lockScreen.addEventListener('click',e=>e.stopPropagation());lockScreen.addEventListener('cancel',e=>e.preventDefault());accountClient.unlockView(lockScreen,()=>{setHidden(false);removeLock();render();});lockScreen.showModal();}
@@ -137,12 +142,14 @@ function ritualHistoryHtml(current){return Object.entries(current.days).sort(([a
 function archiveFoldouts(){function group(title,key,nodes){if(!nodes.length)return;const fold=document.createElement('details');fold.className='archive-fold';fold.dataset.fold=key;const summary=document.createElement('summary');summary.textContent=title;fold.append(summary);nodes[0].before(fold);const inside=document.createElement('div');inside.className='fold-body';fold.append(inside);for(const node of nodes)inside.append(node);bindFoldout(fold,key);}
 group('曾家主子','masters',[...content.querySelectorAll('.fixed-profile:not(.disaster-servant-profile):not(.servant-profile)')]);group('曾家奴才','servants',[...content.querySelectorAll('.servant-profile,.disaster-servant-profile')]);const photos=content.querySelector('#photo-album')?.closest('section');if(photos){photos.querySelector('h3')?.remove();group('礼仪照片 · 日课请安','ritual-photos',[photos]);}for(const fold of content.querySelectorAll('[data-history-date]'))bindFoldout(fold,'ritual-history:'+fold.dataset.historyDate);}
 function render() {
+  if(!hidden&&accountClient.loggedIn&&isOwner(accountClient.profile)&&document.querySelector('dialog[open]:not(.welcome-card):not(.content-lock)'))return;
   if(!hidden&&accountClient.loggedIn&&page==='积分'&&calendarKeepsView(accountClient.profile?.id))return;
   document.body.classList.toggle('is-account-login',!accountClient.loggedIn);
   const footerNote=document.querySelector('.site-footer-note');
   if(footerNote)footerNote.textContent=accountBrandLine(!hidden&&accountClient.loggedIn?accountClient.profile:null);
   if(hidden&&accountClient.loggedIn){paintLock();return;}
   removeLock();
+  unmountOwner();unmountOwner=()=>{};
   unmountServant();unmountServant=()=>{};
   content.style.visibility='';
   unmountSubscription();unmountSubscription=()=>{};
@@ -159,13 +166,15 @@ function render() {
   photoUrls=[];
   if(!accountClient.loggedIn){document.querySelector('nav').innerHTML='';document.querySelector('header small').textContent='曾氏传承 · 身份验证';accountClient.loginView(content);content.insertAdjacentHTML('beforeend','<p class="muted login-version">当前版本 '+APP_VERSION+'</p><button class="login-release-button" data-action="release-log">更新日志</button>'+releaseLogHtml()+certificateGuideHtml());return;}
   document.querySelector('header small').textContent=accountClient.profile.identity+'（'+accountClient.profile.name+'）';
-  document.querySelector('nav').innerHTML = ['家规','今日','任务','积分','档案','订阅','隐私'].map(name=>`<button data-page="${name}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name==='家规'?'曾氏':name}</button>`).join('');
+  document.querySelector('nav').innerHTML = (isOwner(accountClient.profile)?['家规','奴才管理','任务管理','档案','订阅','隐私']:['家规','今日','任务','积分','档案','订阅','隐私']).map(name=>`<button data-page="${name}" class="${name==='积分'&&roleController.reviews.some(r=>r.unread)?'has-new-review':''}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name==='家规'?'曾氏':name}</button>`).join('');
   document.querySelector('h1').textContent = 'ZENG LEGACY';
 
   const today = state.days[dayKey()] || {};
   const paused = state.settings.paused;
   const status=accountClient.connected?'<span data-server-connection class="network-online">在线</span>':'<span data-server-connection class="network-offline">离线</span>';
   const heading = `<div class="eyebrow account-presence">${escape(accountClient.profile.name)} · ${status}<time datetime="${dayKey()}">${dayKey()}</time>${paused?' · 已暂停':''}</div><h2>${page==='今日'?'每日礼仪':page==='订阅'?'订阅挡灾':page}</h2>`;
+  if(isOwner(accountClient.profile)&&['奴才管理','任务管理','档案','订阅'].includes(page)){content.innerHTML=heading+'<div data-owner-host></div>';unmountOwner=mountOwner(content.querySelector('[data-owner-host]'),{client:accountClient,page,notify,getOwnerPhoto:()=>lanBackup.readProfilePhoto()});return;}
+  if(isOwner(accountClient.profile)&&!['家规','隐私'].includes(page)){page='家规';render();return;}
   let body = '';
   if(page==='家规')body=familyPageHtml();
   if(page==='今日') {
@@ -189,20 +198,21 @@ function render() {
   if(page==='今日'&&!ritualKind&&!reportOpen)body=dayRecordsHtml(state,true,accountClient.profile)+body;
   if(page==='档案')body=dayRecordsHtml(state,false,accountClient.profile)+body.replace('</section><section><h3>礼仪照片', '</section><section class="fixed-profile parents-profile" aria-labelledby="parents-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="parents-profile-title">主子：曾仪父母</h3><div class="parents-photo-blank" role="img" aria-label="曾仪父母照片位置，暂时留白"></div><dl><div><dt>生日</dt><dd>未知</dd></div><div><dt>专属奴隶</dt><dd><span class="parents-servant">挡灾奴01　于耕宝</span><span class="parents-servant">挡灾奴02　杜其香</span></dd></div></dl><h4>简介</h4><p>享用曾家挡灾奴01、02号。每个月将自身灾祸出售给挡灾奴，收取钱财并换取自己平安。将自身灾祸赐予挡灾奴。</p></section>'+servantProfileHtml(state,accountClient.profile)+disasterServantsHtml()+'<section><h3>礼仪照片');
   content.innerHTML = (page==='家规'?'':heading) + body;
-  if(page==='积分'){unmountCollection=mountCollection(content,{getState:()=>state,commit:change=>commit(change,false),notify,account:accountClient.profile.id});unmountCalendar=mountScoreCalendar(content,{getState:()=>state,getAccount:()=>accountClient.profile,notify,onClose:render,onMediaSaved:()=>accountClient.sync()});}
+  if(page==='积分'){roleController.refresh();unmountCollection=mountCollection(content,{getState:()=>state,commit:change=>commit(change,false),notify,account:accountClient.profile.id,editable:false,loadMedia:id=>getSubscriptionMedia(id)});unmountCalendar=mountScoreCalendar(content,{getState:()=>state,getAccount:()=>accountClient.profile,notify,onClose:render,onMediaSaved:()=>accountClient.sync(),getReviews:()=>roleController.reviews,onReviewSeen:date=>roleController.seen(date),dayExtra:date=>{const reviews=roleController.reviews.filter(r=>r.date===date);return reviews.length?'<section class="slave-review-details"><h4>主子评价</h4>'+reviews.map(r=>'<p>'+escape(r.by)+' · '+({satisfied:'满意',neutral:'一般',angry:'不满意'})[r.rating]+'<small>'+escape(r.context==='day'?'当日表现':'任务表现')+'</small></p>').join('')+'</section>':'';}});}
   if(page==='档案')archiveFoldouts();
+  if(page==='家规'&&isOwner(accountClient.profile))content.querySelector('.family-contract')?.remove();
   if(page==='家规')for(const fold of content.querySelectorAll('[data-fold]'))bindFoldout(fold,fold.dataset.fold);
   if(['今日','档案'].includes(page))unmountDaysMatter=mountDaysMatter(content,{getState:()=>state,commit,notify,getAccount:()=>accountClient.profile});
   if(page==='任务')prepareTaskShares();
   if(page==='家规')unmountFamilyHeaders=mountFamilyHeaders(content);
-  if(page==='家规')unmountIdentity=mountIdentity(content,{loadMedia:id=>accountClient.loadPrivateMedia(id),getAccount:()=>accountClient.profile,getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
+  if(page==='家规'&&!isOwner(accountClient.profile))unmountIdentity=mountIdentity(content,{loadMedia:id=>accountClient.loadPrivateMedia(id),getAccount:()=>accountClient.profile,getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
   if(page==='档案'){
     unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile,loadMedia:id=>accountClient.loadPrivateMedia(id),commit,notify});
     renderProfilePortrait();
     content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section>`);
 
   }
-  if(page==='隐私'){content.insertAdjacentHTML('afterbegin',accountClient.settingsHtml());accountClient.bindSettings(content);unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile});}
+  if(page==='隐私'){content.insertAdjacentHTML('afterbegin',accountClient.settingsHtml());accountClient.bindSettings(content);if(isOwner(accountClient.profile))ownerPortrait(content);unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile});}
   if(staticHosting&&page==='隐私')content.insertAdjacentHTML('beforeend',lanBackup.settingsHtml());
   if(page==='订阅')unmountSubscription=mountSubscription(content,state,{commit,notify,getPrivateConfig:()=>staticHosting?{contractAvailable:lanBackup.enabled}:pushClient.configuration,loadPrivateContract:staticHosting?()=>lanBackup.readContract():null});
   if(page==='今日'&&!ritualKind&&!reportOpen){
@@ -523,7 +533,7 @@ document.addEventListener('click',async event=>{
       let media;commit(draft=>{media=deleteTask(draft,task.id);});await deleteTaskMedia(media);notify('任务已删除，服务器 备份保留');return;
     }
     if(action==='archive') commit(draft=>{draft.tasks.find(task=>task.id===button.dataset.id).status='archived';});
-    if(action==='edit') {
+    if(action==='edit') {if(state.tasks.find(t=>t.id===button.dataset.id)?.done||state.tasks.find(t=>t.id===button.dataset.id)?.status==='archived'){notify('任务已结束，不可编辑');return;}
       const task=state.tasks.find(item=>item.id===button.dataset.id);
       content.innerHTML=`<h2>编辑任务</h2><form data-form="edit" data-id="${escape(task.id)}">${input('title','标题',task.title)}${area('note','具体内容',task.note)}${taskFields(task)}<label>状态<select name="status">${['active','possible','archived'].map(value=>`<option value="${value}" ${task.status===value?'selected':''}>${{active:'已开展',possible:'尚未发生',archived:'已归档'}[value]}</option>`).join('')}</select></label><label class="check"><input name="confirmed" type="checkbox" ${task.confirmed?'checked':''}>我明确确认以上文字及工作命令为要求</label><p>修改不重置完成状态，不重复计分。</p><button>保存</button></form>`;
     }

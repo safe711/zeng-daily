@@ -5,7 +5,7 @@ let active=HOME_SERVER;
 try{const saved=globalThis.localStorage?.getItem(key);if(origins.includes(saved))active=saved;}catch{}
 export const getServerOrigin=()=>active;
 export async function fetchAccountServer(path,options,{fetcher=fetch,timeout=15000}={}){
- if(!/^\/api\/account\/[a-z0-9/_-]+$/.test(path))throw Error('账号服务器路径无效');
+ if(!/^\/api\/account\/[A-Za-z0-9%/_-]+$/.test(path))throw Error('账号服务器路径无效');
  let error;
  for(const origin of [active,...origins.filter(value=>value!==active)]){
   const controller=new AbortController(),small=/\/(login|me|unlock\/password|unlock\/options)$/.test(path);

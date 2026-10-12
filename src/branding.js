@@ -18,7 +18,7 @@ export function accountBrandLine(profile){
  if(!profile)return '曾氏传承 · 传承不息，荣耀永续。';
  const identity=String(profile.identity||'');
  const role=profile.role;
- if(role==='master')return '曾家主子专用，传承家风，管理家族事务。';
+ if((role==='master'||role==='owner'))return '曾家主子专用，传承家风，管理家族事务。';
  if(role==='servant'||role==='slave'||(!role&&/奴|仆|侍从|近侍|奉侍/.test(identity))){
   return /狗奴/.test(identity)?BRAND_LINE:'曾家奴才专用，致力于一生服务曾家。';
  }
