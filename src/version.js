@@ -1,6 +1,7 @@
-export const APP_VERSION='1.2.10';
+export const APP_VERSION='1.2.11';
 export const CLIENT_BUILD=`daily-shell-v${APP_VERSION}`;
 export const RELEASES=[
+  {version:'1.2.11',date:'2026-10-12',changes:['任务分享图最高提升至2400像素宽，一般任务照片采用大图排列，洗鞋前后对比放大照片区域。','保留完整照片和PNG格式，按图片数量及文件大小调整输出，继续兼容微信分享与服务器上传限制。']},
   {version:'1.2.10',date:'2026-10-12',changes:['各礼仪的拍照预览下方新增返回礼仪界面按钮，采用当前照片后回到对应礼仪继续打卡。']},
   {version:'1.2.9',date:'2026-10-12',changes:['应用名称统一为 ZENG LEGACY，更新页面标题、桌面名称、欢迎提示、通知与分享说明。']},
   {version:'1.2.8',date:'2026-10-12',changes:['修复新桌面应用首次登录等待所有历史照片下载的问题，账号验证与文字历史载入后即可进入。','历史照片在后台校验恢复，失败保留重试；恢复期间保留本机新增记录，切换账号停止原账号媒体导入。']},
