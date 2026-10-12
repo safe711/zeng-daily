@@ -1,6 +1,6 @@
 import {parseDaysMatter,calendarToday,counterText,daysCount,upsertDayRecords} from './daycount.js';
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const base='https://safe711.github.io/zeng-daily/#daysmatter=';
+const base='https://zenglegacy.cn/#daysmatter=';
 let pending=null;try{pending=JSON.parse(sessionStorage.getItem('daily-daysmatter-pending'));}catch{}
 const editingAccounts=new Set();
 export function captureDaysMatterShare(){if(!location.hash.startsWith('#daysmatter='))return false;let text;try{text=decodeURIComponent(location.hash.slice(12));if(text.length>10000)throw Error('分享文字过长');pending={text,referenceDate:calendarToday()};sessionStorage.setItem('daily-daysmatter-pending',JSON.stringify(pending));}catch{pending={text:'',referenceDate:calendarToday()};}history.replaceState(null,'',location.pathname+location.search);return true;}
