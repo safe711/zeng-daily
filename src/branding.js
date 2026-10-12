@@ -1,15 +1,15 @@
 export const BRAND_LINE='曾家狗奴才专用，致力于一生服务曾家。';
 let logoPromise;
-export const SHARE_FOOTER_HEIGHT=280;
+export const SHARE_FOOTER_HEIGHT=340;
 export async function drawBrandFooter(context,width,height){
- let logo=null;if(typeof Image!=='undefined'){logoPromise??=new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('应用 Logo 加载失败，请联网更新后重试'));image.src=new URL('../assets/share-logo.png',import.meta.url).href;});logo=await logoPromise;}
- const previous={alpha:context.globalAlpha,font:context.font,fill:context.fillStyle};const top=height-245;
+ let logo=null;if(typeof Image!=='undefined'){logoPromise??=new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('应用 Logo 加载失败，请联网更新后重试'));image.src=new URL('../assets/share-logo-v2.png',import.meta.url).href;});logo=await logoPromise;}
+ const previous={alpha:context.globalAlpha,font:context.font,fill:context.fillStyle};const top=height-305;
  const centered=(text,y,font,alpha)=>{context.font=font;context.globalAlpha=alpha;context.fillStyle='#b0aaa0';context.fillText(text,(width-context.measureText(text).width)/2,y);};
- context.font='bold 30px system-ui, sans-serif';const name='ZENG LEGACY',logoWidth=88,logoHeight=59,gap=16,nameWidth=context.measureText(name).width,left=(width-logoWidth-gap-nameWidth)/2;context.globalAlpha=.65;if(logo)context.drawImage(logo,left,top,logoWidth,logoHeight);context.fillStyle='#d4c4a5';context.fillText(name,left+logoWidth+gap,top+39);
- centered('— 曾氏传承 —',top+92,'22px system-ui, sans-serif',.55);
- centered('尊卑有序 · 忠诚为誓 · 荣耀永续',top+130,'18px system-ui, sans-serif',.45);
- context.globalAlpha=.18;context.fillStyle='#b0aaa0';context.fillRect(width*.18,top+153,width*.64,1);
- centered('曾家奴才专用，致力于一生服务曾家',top+194,'19px system-ui, sans-serif',.4);
+ const logoWidth=260,logoHeight=logoWidth*(logo?.naturalHeight&&logo?.naturalWidth?logo.naturalHeight/logo.naturalWidth:.48);context.globalAlpha=.7;if(logo)context.drawImage(logo,(width-logoWidth)/2,top,logoWidth,logoHeight);
+ centered('— 曾氏传承 —',top+logoHeight+35,'22px system-ui, sans-serif',.55);
+ centered('尊卑有序 · 忠诚为誓 · 荣耀永续',top+logoHeight+70,'18px system-ui, sans-serif',.45);
+ context.globalAlpha=.18;context.fillStyle='#b0aaa0';context.fillRect(width*.18,top+logoHeight+94,width*.64,1);
+ centered('曾家奴才专用，致力于一生服务曾家',top+logoHeight+130,'19px system-ui, sans-serif',.4);
  context.globalAlpha=previous.alpha;context.font=previous.font;context.fillStyle=previous.fill;
 }
 
