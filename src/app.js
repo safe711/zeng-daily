@@ -1,3 +1,4 @@
+import {accountBrandLine} from './branding.js';
 import {collectionHtml,mountCollection} from './collection.js';
 import {replaceEvidencePhoto} from './photoedit.js';
 import {showStartup} from './startup.js';
@@ -131,6 +132,8 @@ function ritualHistoryHtml(current){return Object.entries(current.days).sort(([a
 function archiveFoldouts(){function group(title,key,nodes){if(!nodes.length)return;const fold=document.createElement('details');fold.className='archive-fold';fold.dataset.fold=key;const summary=document.createElement('summary');summary.textContent=title;fold.append(summary);nodes[0].before(fold);const inside=document.createElement('div');inside.className='fold-body';fold.append(inside);for(const node of nodes)inside.append(node);bindFoldout(fold,key);}
 group('曾家主子','masters',[...content.querySelectorAll('.fixed-profile:not(.disaster-servant-profile):not(.servant-profile)')]);group('曾家奴才','servants',[...content.querySelectorAll('.servant-profile,.disaster-servant-profile')]);const photos=content.querySelector('#photo-album')?.closest('section');if(photos){photos.querySelector('h3')?.remove();group('礼仪照片 · 日课请安','ritual-photos',[photos]);}for(const fold of content.querySelectorAll('[data-history-date]'))bindFoldout(fold,'ritual-history:'+fold.dataset.historyDate);}
 function render() {
+  const footerNote=document.querySelector('.site-footer-note');
+  if(footerNote)footerNote.textContent=accountBrandLine(!hidden&&accountClient.loggedIn?accountClient.profile:null);
   if(hidden&&accountClient.loggedIn){paintLock();return;}
   removeLock();
   unmountServant();unmountServant=()=>{};
