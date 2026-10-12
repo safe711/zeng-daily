@@ -103,3 +103,12 @@ body.is-account-login{background:radial-gradient(ellipse at 50% 0,rgba(182,154,9
 @media(max-height:700px){.is-account-login .unlock-keypad{gap:8px 22px;margin-bottom:10px}.is-account-login .account-login h2{margin-top:4px}.is-account-login header{padding-bottom:12px}}
 
 .is-account-login #content:focus{outline:none}.is-account-login .login-help button{border:0;background:transparent;padding:5px 10px}
+
+/* The frame scrolls independently; its external 200px closing area stays visible. */
+.contract-viewer.modal-dismiss-shell{inset:0;width:100%;max-width:100vw;height:100vh;height:100dvh;max-height:none;margin:0;padding:calc(16px + env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom))!important;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:hidden;outline:none}
+.contract-viewer.modal-dismiss-shell[open]{display:flex;flex-direction:column;align-items:center;justify-content:center}.contract-viewer.modal-dismiss-shell:not([open]){display:none}
+.modal-dismiss-shell>.modal-content-frame{flex:0 1 auto;width:min(100%,760px);min-height:0;max-height:calc(100vh - 232px - env(safe-area-inset-top) - env(safe-area-inset-bottom));max-height:calc(100dvh - 232px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding:18px;border:1px solid #685638;border-radius:16px;background:#1b1d24;overflow:auto;overscroll-behavior:contain}
+.gift-dialog.modal-dismiss-shell>.modal-content-frame{width:min(440px,100%);padding:0}.modal-dismiss-shell>.modal-dismiss-space{width:min(100%,760px);height:200px;min-height:200px;flex:0 0 200px;color:#aaa391;background:transparent}
+.subscription-qr .modal-content-frame>img{display:block;width:100%;max-height:55vh;object-fit:contain;border-radius:10px}.modal-content-frame>p{margin-top:8px}
+
+.modal-dismiss-shell>.modal-content-frame{text-align:left}
