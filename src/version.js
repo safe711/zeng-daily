@@ -1,6 +1,7 @@
-export const APP_VERSION='1.2.14';
+export const APP_VERSION='1.2.15';
 export const CLIENT_BUILD=`daily-shell-v${APP_VERSION}`;
 export const RELEASES=[
+  {version:'1.2.15',date:'2026-10-12',changes:['任务列表移除常驻删除按钮，归档区齿轮开启整理模式后才显示红色删除任务，保留二次确认。','归档任务默认折叠，显示名称、完成时间和完成状态，逾期完成标红，其余已完成标绿。']},
   {version:'1.2.14',date:'2026-10-12',changes:['添加任务的发布主子改为曾仪、曾仪父亲、曾仪母亲下拉选择。','任务执行奴才改为四个指定身份下拉选择，所选姓名与编号保存在任务详情和分享截图中。']},
   {version:'1.2.13',date:'2026-10-12',changes:['每日礼仪分享图和分享文本上方加入当前账号的奴隶编号与名称。','所有生成的分享截图统一透明logo、ZENG LEGACY、曾氏传承、标语、淡色分割线与曾家奴才专用说明，预留独立页脚空间。']},
   {version:'1.2.12',date:'2026-10-12',changes:['分享图页脚的logo与说明文字适度放大，使用透明龙纹logo去掉米色底框，保持淡色居中。']},

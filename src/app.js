@@ -49,8 +49,9 @@ let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
 const lanBackup=createLanBackup({photos:async()=>(await listPhotos()).filter(usedRitualPhoto),records:()=>state.shoeRecords,tasks:()=>state.tasks,notify,getAccountToken:()=>accountClient?.token});
-const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onAuthenticated:()=>setHidden(false),onConnection:paintConnection,onWelcome:profile=>{startupReady.then(()=>{if(!hidden&&accountClient.loggedIn&&accountClient.profile?.id===profile.id){notify('');showWelcome(profile,state.servantProfile);}});},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){page=hasPendingDaysMatter()?'档案':'今日';hidden=isAccountLocked();ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
+const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onAuthenticated:()=>setHidden(false),onConnection:paintConnection,onWelcome:profile=>{startupReady.then(()=>{if(!hidden&&accountClient.loggedIn&&accountClient.profile?.id===profile.id){notify('');showWelcome(profile,state.servantProfile);}});},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){archiveEditing=false;page=hasPendingDaysMatter()?'档案':'今日';hidden=isAccountLocked();ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
 let page = '今日';
+let archiveEditing=false;
 let accountWasLoggedIn=false;
 let hidden = isAccountLocked();
 let lockScreen=null;
@@ -167,7 +168,7 @@ function render() {
     for(const kind of RITUAL_KINDS) body += `<button class="ritual-card ${today[kind]!==undefined?'is-complete':''}" data-action="open-ritual" data-kind="${kind}"><span class="ritual-dot" aria-hidden="true">${today[kind]!==undefined?'✓':'○'}</span><span class="ritual-card-title"><strong>${ritualNames[kind]}</strong><small>${today[kind]!==undefined?`完成于 ${escape(ritualEvidence(today,kind).completedTime||'时间未记录')}`:escape(state.settings[kind]||'提醒时间未设置')}</small></span><span class="ritual-card-status">${today[kind]!==undefined?'已完成':paused?'已暂停':'待完成'}</span><span aria-hidden="true">›</span></button>`;
     body += '<p class="muted home-note">礼仪每日记录；洗鞋等手动事项请到“任务”管理。</p><section class="daily-share"><h3>今日礼仪汇总</h3><p>请安文本、打卡缩略图与每段完成时间，整理为一张分享卡。</p><button data-action="open-report">预览礼仪汇总</button><button data-action="share-day" disabled>分享至微信</button><p class="muted">四项礼仪完成后解锁分享。在系统分享菜单选择微信，再确认接收人。</p></section>';
   }
-  if(page==='任务') body=tasksHtml(state).replace('<div class="task-list">',reminderPanel()+'<div class="task-list">');
+  if(page==='任务') body=tasksHtml(state,{archiveEditing}).replace('<div class="task-list">',reminderPanel()+'<div class="task-list">');
   if(page==='积分') body = collectionHtml(state)+`<section><small>忠诚积分 · 虚拟计分</small><div class="score">${points(state)}</div><p>请安与复命各 +2，已开展任务完成 +3。警告不自动扣分。</p></section><form data-form="ledger"><label>类型<select name="kind"><option value="reward">虚拟嘉奖</option><option value="warning">虚拟警告</option></select></label>${input('points','分值（-1000 至 1000）','0','number')}${area('text','说明')}<button ${paused?'disabled':''}>记录虚拟反馈</button></form>${list([...state.ledger].reverse().map(entry=>({...entry,text:`${entry.kind==='warning'?'虚拟警告':entry.kind==='reward'?'虚拟嘉奖':'积分'} ${entry.points>=0?'+':''}${entry.points} · ${entry.text}`})))}`;
   if(page==='档案') body = `<section class="fixed-profile" aria-labelledby="fixed-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="fixed-profile-title">主子：曾仪</h3><div id="profile-portrait"><p class="muted">正在读取主子照片…</p></div><dl><div><dt>生日</dt><dd>2003年</dd></div><div><dt>学历</dt><dd>研究生</dd></div><div><dt>学校</dt><dd>对外经济贸易大学</dd></div><div><dt>专属狗奴</dt><dd>于涵、小姜</dd></div></dl><h4>简介</h4><p>目前负责管理曾家狗奴才，发布命令，收取贡金，办理灾祸出售等业务。</p></section><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 服务器 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 服务器。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${ritualHistoryHtml(state)}`;
   if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“ZENG LEGACY”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
@@ -452,7 +453,7 @@ document.addEventListener('dblclick',event=>event.preventDefault(),{passive:fals
 document.addEventListener('click',async event=>{
   const button=event.target.closest('button'); if(!button) return;
   try {
-    if(button.dataset.page) {discardUnusedPhoto();page=button.dataset.page;ritualKind=null;reportOpen=false;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':page==='家规'?'#rules':''));render();window.scrollTo(0,0);return;}
+    if(button.dataset.page) {archiveEditing=false;discardUnusedPhoto();page=button.dataset.page;ritualKind=null;reportOpen=false;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;history.replaceState(null,'',location.pathname+location.search+(page==='订阅'?'#subscription':page==='家规'?'#rules':''));render();window.scrollTo(0,0);return;}
     const action=button.dataset.action;
     if(action==='release-log'){document.querySelector('#release-log').showModal();return;}
     if(action==='close-release-log'){document.querySelector('#release-log').close();return;}
@@ -461,6 +462,7 @@ document.addEventListener('click',async event=>{
     if(action==='copy-certificate-address'){const field=document.querySelector('#certificate-install-address');try{await navigator.clipboard.writeText(field.value);notify('安装地址已复制，请打开 Safari 粘贴');}catch{field.focus();field.select();notify('请长按地址复制，再打开 Safari 粘贴');}return;}
 
     if(action==='share-task'){const prepared=taskShares.get(button.dataset.id);if(!prepared)throw Error('任务截图正在准备，请稍后点击');try{await shareTaskFile(prepared.blob,prepared.date,prepared.title,undefined,'状态图');notify('请在分享菜单选择微信和接收人');}catch(error){if(error.name==='AbortError'){notify('已取消分享，任务记录保留');return;}throw error;}return;}
+    if(action==='toggle-archive-edit'){archiveEditing=!archiveEditing;const archive=button.closest('.task-archive');archive?.classList.toggle('is-editing',archiveEditing);button.setAttribute('aria-pressed',String(archiveEditing));return;}
     if(action==='add-task'){content.querySelector('#add-task-dialog').showModal();return;}
     if(action==='close-add-task'){content.querySelector('#add-task-dialog').close();return;}
     if(action==='open-task'){location.hash='task/'+encodeURIComponent(button.dataset.id);return;}
@@ -504,7 +506,8 @@ document.addEventListener('click',async event=>{
     if(action==='reveal') {setHidden(true);render();}
     if(action==='complete') commit(draft=>completeTask(draft,button.dataset.id));
     if(action==='delete-task'){
-      const task=state.tasks.find(t=>t.id===button.dataset.id);if(!task)throw Error('任务不存在或已删除');
+      event.preventDefault();event.stopPropagation();if(!archiveEditing||!button.closest('.task-archive'))return;
+      const task=state.tasks.find(t=>t.id===button.dataset.id);if(!task)throw Error('任务不存在或已删除');if(!task.done&&task.status!=='archived')throw Error('请先将任务归档，再进入整理模式删除');
       if(!confirm('确定删除“'+task.title+'”及本机关联照片、截图？\n服务器 备份和已获得积分保留。'))return;
       let media;commit(draft=>{media=deleteTask(draft,task.id);});await deleteTaskMedia(media);notify('任务已删除，服务器 备份保留');return;
     }
