@@ -325,3 +325,9 @@ button[data-action="update"].has-new-update{position:relative}button[data-action
 .doll-quality-0{--quality:#a79985}.doll-quality-1{--quality:#588c79}.doll-quality-2{--quality:#6b9fcc}.doll-quality-3{--quality:#a677c1}.doll-quality-4{--quality:#d6ab52}.doll-quality-5{--quality:#ecce8e}
 
 .doll-detail-quality{color:var(--quality)}
+
+.doll-quality-0{--quality:#eeeeee}.doll-quality-1{--quality:#58cb76}.doll-quality-2{--quality:#579cf0}.doll-quality-3{--quality:#af73e3}.doll-quality-4{--quality:#ffa13b}.doll-quality-5{--quality:#ee5357}
+
+.slot-toy{grid-column:2;grid-row:5;justify-self:center;width:66px}.estate-pair-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.estate-pair-actions button{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;padding:10px 5px}.estate-pair-actions img{width:42px;height:42px;image-rendering:pixelated}.estate-pair-actions span{font-size:12px}@media(max-width:600px){.slot-toy{width:38px}}
+
+.estate-owned-goods button{border:2px solid var(--quality);border-radius:8px}
