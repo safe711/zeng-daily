@@ -1,3 +1,4 @@
+import {estateHtml,mountEstate,estateKeepsView} from './estate.js';
 import {achievementsHtml,mountAchievements,achievementsKeepView} from './achievements.js';
 import {isOwner,mountOwner,ownerAvatarHtml,createRoleController} from './owner.js';
 import {mountFamilyHeaders} from './familyheaders.js';
@@ -74,6 +75,7 @@ let unmountDaysMatter=()=>{};
 let unmountCollection=()=>{};
 let unmountCalendar=()=>{};
 let unmountAchievements=()=>{};
+let unmountEstate=()=>{};
 let unmountFamilyHeaders=()=>{};
 let taskDetailId=null;
 let shoeTaskId=null;
@@ -144,6 +146,7 @@ function ritualHistoryHtml(current){return Object.entries(current.days).sort(([a
 function archiveFoldouts(){function group(title,key,nodes){if(!nodes.length)return;const fold=document.createElement('details');fold.className='archive-fold';fold.dataset.fold=key;const summary=document.createElement('summary');summary.textContent=title;fold.append(summary);nodes[0].before(fold);const inside=document.createElement('div');inside.className='fold-body';fold.append(inside);for(const node of nodes)inside.append(node);bindFoldout(fold,key);}
 group('曾家主子','masters',[...content.querySelectorAll('.fixed-profile:not(.disaster-servant-profile):not(.servant-profile)')]);group('曾家奴才','servants',[...content.querySelectorAll('.servant-profile,.disaster-servant-profile')]);const photos=content.querySelector('#photo-album')?.closest('section');if(photos){photos.querySelector('h3')?.remove();group('礼仪照片 · 日课请安','ritual-photos',[photos]);}for(const fold of content.querySelectorAll('[data-history-date]'))bindFoldout(fold,'ritual-history:'+fold.dataset.historyDate);}
 function render() {
+  if(!hidden&&accountClient.loggedIn&&estateKeepsView(accountClient.profile?.id))return;
   if(!hidden&&accountClient.loggedIn&&isOwner(accountClient.profile)&&document.querySelector('dialog[open]:not(.welcome-card):not(.content-lock)'))return;
   if(!hidden&&accountClient.loggedIn&&page==='积分'&&(calendarKeepsView(accountClient.profile?.id)||achievementsKeepView(accountClient.profile?.id)))return;
   document.body.classList.toggle('is-account-login',!accountClient.loggedIn);
@@ -162,6 +165,7 @@ function render() {
   unmountCollection();unmountCollection=()=>{};
   unmountCalendar();unmountCalendar=()=>{};
   unmountAchievements();unmountAchievements=()=>{};
+  unmountEstate();unmountEstate=()=>{};
   unmountFamilyHeaders();unmountFamilyHeaders=()=>{};
   cancelHold();
   stopCamera();
@@ -176,7 +180,7 @@ function render() {
   const paused = state.settings.paused;
   const status=accountClient.connected?'<span data-server-connection class="network-online">在线</span>':'<span data-server-connection class="network-offline">离线</span>';
   const heading = `<div class="eyebrow account-presence">${escape(accountClient.profile.name)} · ${status}<time datetime="${dayKey()}">${dayKey()}</time>${paused?' · 已暂停':''}</div><h2>${page==='今日'?'每日礼仪':page==='订阅'?'订阅挡灾':page}</h2>`;
-  if(isOwner(accountClient.profile)&&['奴才管理','任务管理','档案','订阅'].includes(page)){content.innerHTML=heading+'<div data-owner-host></div>';unmountOwner=mountOwner(content.querySelector('[data-owner-host]'),{client:accountClient,page,notify,getOwnerPhoto:()=>lanBackup.readProfilePhoto()});return;}
+  if(isOwner(accountClient.profile)&&['奴才管理','任务管理','档案','订阅'].includes(page)){content.innerHTML=heading+(page==='奴才管理'?estateHtml():'')+'<div data-owner-host></div>';if(page==='奴才管理')unmountEstate=mountEstate(content,{getState:()=>state,getAccount:()=>accountClient.profile,commit:change=>commit(change,false),client:accountClient,notify});unmountOwner=mountOwner(content.querySelector('[data-owner-host]'),{client:accountClient,page,notify,getOwnerPhoto:()=>lanBackup.readProfilePhoto()});return;}
   if(isOwner(accountClient.profile)&&!['家规','隐私'].includes(page)){page='家规';render();return;}
   let body = '';
   if(page==='家规')body=familyPageHtml();
@@ -188,7 +192,7 @@ function render() {
     body += '<p class="muted home-note">礼仪每日记录；洗鞋等手动事项请到“任务”管理。</p><section class="daily-share"><h3>今日礼仪汇总</h3><p>请安文本、打卡缩略图与每段完成时间，整理为一张分享卡。</p><button data-action="open-report">预览礼仪汇总</button><button data-action="share-day" disabled>分享至微信</button><p class="muted">四项礼仪完成后解锁分享。在系统分享菜单选择微信，再确认接收人。</p></section>';
   }
   if(page==='任务') body=tasksHtml(state,{archiveEditing}).replace('<div class="task-list">',reminderPanel()+'<div class="task-list">');
-  if(page==='积分') body=collectionHtml(state)+achievementsHtml(state)+scoreCalendarHtml(state,undefined,false);
+  if(page==='积分') body=estateHtml()+collectionHtml(state)+achievementsHtml(state)+scoreCalendarHtml(state,undefined,false);
   if(page==='档案') body = `<section class="fixed-profile" aria-labelledby="fixed-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="fixed-profile-title">主子：曾仪</h3><div id="profile-portrait"><p class="muted">正在读取主子照片…</p></div><dl><div><dt>生日</dt><dd>2003年</dd></div><div><dt>学历</dt><dd>研究生</dd></div><div><dt>学校</dt><dd>对外经济贸易大学</dd></div><div><dt>专属狗奴</dt><dd>于涵、小姜</dd></div></dl><h4>简介</h4><p>目前负责管理曾家狗奴才，发布命令，收取贡金，办理灾祸出售等业务。</p></section><section><h3>礼仪照片 · 日课请安</h3><p>本机照片与 服务器 上传状态分别记录。文字备份不含照片，请单独下载照片或同步 服务器。</p><button data-action="sync-photos">补传待同步照片</button><div id="photo-album">正在读取照片…</div></section><h3>历日礼仪</h3>${ritualHistoryHtml(state)}`;
   if(page==='隐私') body = `<form data-form="settings">${input('morning','请安提示时间',state.settings.morning,'time')}${input('evening','复命提示时间',state.settings.evening,'time')}<label class="check"><input name="hideOnLeave" type="checkbox" ${state.settings.hideOnLeave?'checked':''}>离开应用后自动隐去内容</label><label class="check"><input name="paused" type="checkbox" ${paused?'checked':''}>暂停日课与积分操作</label><button>保存设置</button></form><section><h3>安装与更新</h3><p id="offline">正在检查离线准备状态…</p><button data-action="update">检查更新</button><button data-action="release-log">更新日志</button><p>主屏幕显示名称为“ZENG LEGACY”。此版本没有推送服务器，也没有后台定时通知。</p></section>`;
   const mediaSaved=manual=>staticHosting?(manual?lanBackup.retry():lanBackup.run()):syncTaskMedia(state.tasks,{key:nasToken}).then(()=>retryMedia()).catch(error=>notify('图片保留待补传：'+error.message));
@@ -201,7 +205,7 @@ function render() {
   if(page==='今日'&&!ritualKind&&!reportOpen)body=dayRecordsHtml(state,true,accountClient.profile)+body;
   if(page==='档案')body=dayRecordsHtml(state,false,accountClient.profile)+body.replace('</section><section><h3>礼仪照片', '</section><section class="fixed-profile parents-profile" aria-labelledby="parents-profile-title"><small class="eyebrow">曾家 · 固定档案</small><h3 id="parents-profile-title">主子：曾仪父母</h3><div class="parents-photo-blank" role="img" aria-label="曾仪父母照片位置，暂时留白"></div><dl><div><dt>生日</dt><dd>未知</dd></div><div><dt>专属奴隶</dt><dd><span class="parents-servant">挡灾奴01　于耕宝</span><span class="parents-servant">挡灾奴02　杜其香</span></dd></div></dl><h4>简介</h4><p>享用曾家挡灾奴01、02号。每个月将自身灾祸出售给挡灾奴，收取钱财并换取自己平安。将自身灾祸赐予挡灾奴。</p></section>'+servantProfileHtml(state,accountClient.profile)+disasterServantsHtml()+'<section><h3>礼仪照片');
   content.innerHTML = (page==='家规'?'':heading) + body;
-  if(page==='积分'){unmountAchievements=mountAchievements(content,{getState:()=>state,getAccount:()=>accountClient.profile,commit:change=>commit(change,false),notify,onMediaSaved:()=>accountClient.sync()});roleController.refresh();unmountCollection=mountCollection(content,{getState:()=>state,commit:change=>commit(change,false),notify,account:accountClient.profile.id,editable:false,loadMedia:id=>getSubscriptionMedia(id)});unmountCalendar=mountScoreCalendar(content,{getState:()=>state,getAccount:()=>accountClient.profile,notify,onClose:render,onMediaSaved:()=>accountClient.sync(),getReviews:()=>roleController.reviews,onReviewSeen:date=>roleController.seen(date),dayExtra:date=>{const reviews=roleController.reviews.filter(r=>r.date===date);return reviews.length?'<section class="slave-review-details"><h4>主子评价</h4>'+reviews.map(r=>'<p>'+escape(r.by)+' · '+({satisfied:'满意',neutral:'一般',angry:'不满意'})[r.rating]+'<small>'+escape(r.context==='day'?'当日表现':'任务表现')+'</small></p>').join('')+'</section>':'';}});}
+  if(page==='积分'){unmountEstate=mountEstate(content,{getState:()=>state,getAccount:()=>accountClient.profile,commit:change=>commit(change,false),client:accountClient,notify});unmountAchievements=mountAchievements(content,{getState:()=>state,getAccount:()=>accountClient.profile,commit:change=>commit(change,false),notify,onMediaSaved:()=>accountClient.sync()});roleController.refresh();unmountCollection=mountCollection(content,{getState:()=>state,commit:change=>commit(change,false),notify,account:accountClient.profile.id,editable:false,loadMedia:id=>getSubscriptionMedia(id)});unmountCalendar=mountScoreCalendar(content,{getState:()=>state,getAccount:()=>accountClient.profile,notify,onClose:render,onMediaSaved:()=>accountClient.sync(),getReviews:()=>roleController.reviews,onReviewSeen:date=>roleController.seen(date),dayExtra:date=>{const reviews=roleController.reviews.filter(r=>r.date===date);return reviews.length?'<section class="slave-review-details"><h4>主子评价</h4>'+reviews.map(r=>'<p>'+escape(r.by)+' · '+({satisfied:'满意',neutral:'一般',angry:'不满意'})[r.rating]+'<small>'+escape(r.context==='day'?'当日表现':'任务表现')+'</small></p>').join('')+'</section>':'';}});}
   if(page==='档案')archiveFoldouts();
   if(page==='家规'&&isOwner(accountClient.profile))content.querySelector('.family-contract')?.remove();
   if(page==='家规')for(const fold of content.querySelectorAll('[data-fold]'))bindFoldout(fold,fold.dataset.fold);
