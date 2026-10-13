@@ -29,12 +29,12 @@ const dollPalettes=new Map();
 function dollShade(hex,amount){const key=hex+':'+amount;if(dollPalettes.has(key))return dollPalettes.get(key);const n=parseInt(hex.slice(1),16),channels=[n>>16,(n>>8)&255,n&255].map(v=>Math.max(0,Math.min(255,v+amount)));const result='#'+channels.map(v=>v.toString(16).padStart(2,'0')).join('');dollPalettes.set(key,result);return result;}
 export function drawPaperDoll(c,actor,t,scale=1){
  const a=actor.avatar||{},pose=actor.pose||'idle',phase=Math.floor(t/150)%4;
- const crouch=['kneel','pray','stationed','feeding','rest'].includes(pose),walking=['walk','follow'].includes(pose),bend=['bow','feeding','pray'].includes(pose)?2:0;
+ const crouch=['kneel','pray','stationed','feeding','rest','prostrate','bow'].includes(pose),walking=['walk','follow'].includes(pose),bend=['bow','feeding','pray'].includes(pose)?2:0;
  const lookup=id=>ESTATE_CATALOG.find(i=>i.id===id),top=lookup(a.top),bottom=lookup(a.bottom),shoe=lookup(a.shoes),collar=lookup(a.collar);
  const skin=a.skin||'#e7b891',hair=a.hairColor||'#45312b',cloth=top?.style||'#958368',prison=a.top==='slave-base',pants=bottom?.style||(prison?'#d9d4c7':'#514744'),outline='#382820';
- const bob=walking&&phase%2?1:0,torso=crouch?-33:-42,head=torso-25+bend,stride=walking?(phase%2?2:-2):0;
+ const bow=['prostrate','bow'].includes(pose)?[0,.25,.7,1,1,.7,.25,0][Math.floor(t/180)%8]:0;const bob=walking&&phase%2?1:0,torso=crouch?-33:-42,head=torso-25+bend,stride=walking?(phase%2?2:-2):0;
  c.save();c.imageSmoothingEnabled=false;c.translate(Math.round(actor.x),Math.round(actor.y));c.scale((actor.direction||1)*scale,scale);
- let layer='body';const r=(x,y,w,h,color)=>{const face=layer==='head',sx=face?1.45:.9,sy=face?1.4:.72,py=face?torso*.72-2+(y-head-22)*sy:y*sy;rect(c,x*sx,py+bob,Math.max(1,w*sx),Math.max(1,h*sy),color);},shade=(color,n)=>dollShade(color,n);
+ let layer='body';const r=(x,y,w,h,color)=>{const face=layer==='head',sx=face?1.45:.9,sy=face?1.4:.72,py=face?torso*.72-2+(y-head-22)*sy:y*sy;let px=x*sx,yy=py+bob+(face?28:4)*bow,ww=Math.max(1,w*sx),hh=Math.max(1,h*sy);if(face&&bow>.6){const center=torso*.72-18;px=-(py-center)-hh+18*bow;yy=x*sx+center+28*bow;[ww,hh]=[hh,ww];}else if(face)px+=18*bow;rect(c,px,yy,ww,hh,color);},shade=(color,n)=>dollShade(color,n);
  // A stepped ground shadow and independent back hair establish depth.
  r(-15,0,30,2,'#241b2259');r(-11,-1,22,4,'#241b2235');
  layer='head';if(a.hair==='long'){r(-11,head+3,23,31,outline);r(-10,head+2,21,31,hair);r(-8,head+4,3,27,shade(hair,14));r(7,head+5,3,28,shade(hair,-13));}
@@ -53,7 +53,7 @@ export function drawPaperDoll(c,actor,t,scale=1){
  // Articulated sleeves, lit fingertips and cuffs follow the existing poses.
  const swing=walking?(phase%2?2:-2):0;
  const arm=(x,offset)=>{r(x-1,torso+4+offset,7,14,outline);r(x,torso+4+offset,5,12,cloth);r(x,torso+5+offset,1,9,shade(cloth,23));r(x+4,torso+5+offset,1,10,shade(cloth,-26));if(prison)for(let k=3;k<11;k+=4)r(x,torso+4+offset+k,5,2,'#414641');r(x,torso+15+offset,5,2,shade(cloth,-30));r(x,torso+17+offset,5,5,shade(skin,-28));r(x,torso+17+offset,4,4,skin);r(x+1,torso+17+offset,2,1,shade(skin,17));r(x+3,torso+19+offset,1,2,shade(skin,-17));};
- arm(-15,swing);arm(12,-swing);
+ arm(-15,swing);arm(12,-swing);if(bow>.6){r(8,-5,15,3,skin);r(20,-5,4,3,shade(skin,-20));}
  if(pose==='pray'){r(-6,torso+9,12,5,shade(skin,-25));r(-5,torso+9,5,3,skin);r(1,torso+8,4,4,skin);r(0,torso+6,1,8,shade(skin,21));}
  if(pose==='give'){r(15,torso+14,11,4,shade(skin,-21));r(16,torso+14,9,2,skin);}
  // Sculpted head: outline, cheek planes, eyelids, catchlights and warm rim light.
