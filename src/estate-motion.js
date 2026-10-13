@@ -31,3 +31,6 @@ export function makeGuardMotion(id,ownerId,targetId,leader,dog,destination,start
  const endDirection=destination.x>=d.x?1:-1,end={...point(destination),x:destination.x+endDirection*LEASH_DISTANCE,direction:endDirection};stages.push({duration:duration(p,end),ownerFrom:p,ownerTo:end,dogFrom:d,dogTo:{...point(destination),direction:-1},phase:'lead'});return {id,ownerId,targetId,kind:'guard',site:'door',scene:destination.scene,startedAt,stages};}
 
 export function makeRideMotion(id,ownerId,targetId,leader,dog,startedAt){const d=point(dog),near={...d,x:d.x-d.direction*12};return {id,ownerId,targetId,kind:'ride',scene:d.scene,startedAt,stages:[{duration:duration(leader,near),ownerFrom:point(leader),ownerTo:near,dogFrom:d,dogTo:d,phase:'pickup'},{duration:550,ownerFrom:near,ownerTo:d,dogFrom:d,dogTo:d,phase:'mount'}]};}
+
+export const BED_FOOTWEAR_POINT={x:580,y:316};
+export function estateShoeTarget(leader,site=null){const shoe=site==='bed'&&leader.scene==='bedroom'?{...BED_FOOTWEAR_POINT}:site==='desk'?{x:leader.x-44,y:leader.y}:{x:leader.x,y:leader.y};return {shoe:{...shoe,scene:leader.scene,itemId:leader.avatar?.shoes||null},dog:{scene:leader.scene,x:shoe.x-27,y:shoe.y,direction:1}};}
