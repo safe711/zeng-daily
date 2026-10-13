@@ -25,3 +25,8 @@ export function accountBrandLine(profile){
  if(!role&&/主子|主人|主家/.test(identity))return '曾家主子专用，传承家风，管理家族事务。';
  return '曾氏传承 · 传承不息，荣耀永续。';
 }
+
+const medalSeriesCodes={streak:'ST',total:'TL',task:'TS',gift:'GF',good:'GD',neutral:'MD',bad:'BD'};
+export const achievementTier=a=>['普通','精良','稀有','史诗','传说','至尊'].indexOf(a.rank)+1;
+export const achievementMedalCode=a=>'ZL-M-'+medalSeriesCodes[a.series]+'-T'+String(achievementTier(a)).padStart(2,'0')+'-'+String(a.threshold).padStart(4,'0');
+export function commemorativeCardCode(kind='C',id=crypto.randomUUID(),now=new Date()){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Hong_Kong',year:'numeric',month:'2-digit',day:'2-digit'}).format(now).replaceAll('-','');return 'ZL-'+kind+'-'+date+'-'+id.replaceAll('-','').slice(0,12).toUpperCase();}
