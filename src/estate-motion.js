@@ -33,7 +33,7 @@ export function makeGuardMotion(id,ownerId,targetId,leader,dog,destination,start
 
 export function makeRideMotion(id,ownerId,targetId,leader,dog,startedAt){const d=point(dog),near={...d,x:d.x-d.direction*12};return {id,ownerId,targetId,kind:'ride',scene:d.scene,startedAt,stages:[{duration:duration(leader,near),ownerFrom:point(leader),ownerTo:near,dogFrom:d,dogTo:d,phase:'pickup'},{duration:550,ownerFrom:near,ownerTo:d,dogFrom:d,dogTo:d,phase:'mount'}]};}
 
-export const BED_FOOTWEAR_POINT={x:580,y:316};
+export const BED_FOOTWEAR_POINT={x:450,y:315};
 export function estateShoeTarget(leader,site=null){const shoe=site==='bed'&&leader.scene==='bedroom'?{...BED_FOOTWEAR_POINT}:site==='desk'?{x:leader.x-44,y:leader.y-OWNER_CHAIR_RISE}:{x:leader.x,y:leader.y};return {shoe:{...shoe,scene:leader.scene,itemId:leader.avatar?.shoes||null},dog:{scene:leader.scene,x:shoe.x-27,y:shoe.y,direction:1}};}
 
 // Follow the owner's walked path, with one full character of clear space.
