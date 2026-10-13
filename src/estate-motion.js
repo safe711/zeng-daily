@@ -20,6 +20,12 @@ export const motionDuration=m=>m.stages.reduce((n,s)=>n+s.duration,0);
 export function sampleMotion(m,elapsed){
  let stage=m.stages[m.stages.length-1],remaining=Math.max(0,elapsed),done=true;
  for(const s of m.stages){stage=s;if(remaining<s.duration){done=false;break;}remaining-=s.duration;}
- const k=done?1:Math.min(1,remaining/stage.duration),mix=(a,b)=>a&&b?{...b,x:a.x+(b.x-a.x)*k,y:a.y+(b.y-a.y)*k,direction:b.x===a.x?b.direction:b.x>a.x?1:-1}:null;
+ if(elapsed>=motionDuration(m)-.001)done=true;const k=done?1:Math.min(1,remaining/stage.duration),mix=(a,b)=>a&&b?{...b,x:a.x+(b.x-a.x)*k,y:a.y+(b.y-a.y)*k,direction:k>=1?b.direction:b.x===a.x?b.direction:b.x>a.x?1:-1}:null;
  return {done,phase:stage.phase,attached:stage.phase!=='pickup',owner:mix(stage.ownerFrom,stage.ownerTo),dog:mix(stage.dogFrom,stage.dogTo)};
 }
+
+export function makeGuardMotion(id,ownerId,targetId,leader,dog,destination,startedAt){const order=['courtyard','bedroom','shrine'],stages=[];let p=point(leader),d=point(dog);const ownerStage=(from,to,phase,durationMs)=>stages.push({duration:durationMs??duration(from,to),ownerFrom:from,ownerTo:to,dogFrom:d,dogTo:d,phase});
+ while(p.scene!==d.scene){const direction=order.indexOf(d.scene)>order.indexOf(p.scene)?1:-1,edge={...p,x:direction>0?670:-30,direction};ownerStage(p,edge,'pickup');p={scene:order[order.indexOf(p.scene)+direction],x:direction>0?-30:670,y:305,direction};ownerStage(p,p,'pickup',650);}
+ const direction=p.scene!==destination.scene?(order.indexOf(destination.scene)>order.indexOf(p.scene)?1:-1):(destination.x>=d.x?1:-1),pickup=makeLeadMotion(id,ownerId,targetId,{...p,direction},d,null,'guard','door',startedAt);stages.push(...pickup.stages);p=pickup.stages.at(-1).ownerTo;
+ while(d.scene!==destination.scene){const side=order.indexOf(destination.scene)>order.indexOf(d.scene)?1:-1,end={...p,x:side>0?670:-30,direction:side},dogEnd={...d,x:end.x-side*LEASH_DISTANCE,direction:side};stages.push({duration:duration(p,end),ownerFrom:p,ownerTo:end,dogFrom:d,dogTo:dogEnd,phase:'lead'});p={scene:order[order.indexOf(d.scene)+side],x:side>0?-30:670,y:305,direction:side};d={...p,x:p.x-side*LEASH_DISTANCE};stages.push({duration:650,ownerFrom:p,ownerTo:p,dogFrom:d,dogTo:d,phase:'portal'});}
+ const endDirection=destination.x>=d.x?1:-1,end={...point(destination),x:destination.x+endDirection*LEASH_DISTANCE,direction:endDirection};stages.push({duration:duration(p,end),ownerFrom:p,ownerTo:end,dogFrom:d,dogTo:{...point(destination),direction:-1},phase:'lead'});return {id,ownerId,targetId,kind:'guard',site:'door',scene:destination.scene,startedAt,stages};}
