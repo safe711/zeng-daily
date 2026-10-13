@@ -30,7 +30,7 @@ import {createLanBackup} from './lanbackup.js';
 import {createUpdater} from './updater.js';
 import {APP_VERSION,releaseLogHtml} from './version.js';
 import {certificateGuideHtml} from './certificate.js';
-import {createTask,tasksHtml,deleteTask,taskType} from './tasks.js';
+import {createTask,tasksHtml,deleteTask,taskType,taskHistoryHtml} from './tasks.js';
 import {mountTask} from './taskview.js';
 import {buildTaskCard,syncTaskMedia} from './taskmedia.js';
 import {shareTaskFile} from './taskfiles.js';
@@ -209,7 +209,8 @@ function render() {
   if(page==='档案'){
     unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile,loadMedia:id=>accountClient.loadPrivateMedia(id),commit,notify});
     renderProfilePortrait();
-    content.insertAdjacentHTML('beforeend',`<section><h3>侍奉与任务记录</h3>${list([...state.records].reverse())}</section>`);
+    content.insertAdjacentHTML('beforeend',taskHistoryHtml(state));
+    bindFoldout(content.querySelector('.task-history-group'),'task-history');
 
   }
   if(page==='隐私'){content.insertAdjacentHTML('afterbegin',accountClient.settingsHtml());accountClient.bindSettings(content);if(isOwner(accountClient.profile))ownerPortrait(content);unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile});}

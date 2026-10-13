@@ -284,3 +284,5 @@ nav button.has-new-review::after,.review-red-dot{content:'';position:absolute;to
 .archive-fold>summary::after{content:"›"}
 
 .owner-subscription .network-offline,.subscription-introduction .network-offline{color:#eb8585}
+
+.task-history-row>summary span{min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.task-history-row>summary::after{flex-shrink:0}
