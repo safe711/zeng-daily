@@ -50,7 +50,7 @@ seal.textContent='';seal.setAttribute('role','img');seal.setAttribute('aria-labe
 const message = document.querySelector('#message');
 const notify=createNotifier(message);
 let updateAvailable=false;
-function paintUpdateBadge(){const button=document.querySelector('nav [data-page="隐私"]');if(button){button.classList.toggle('has-new-update',updateAvailable);button.setAttribute('aria-label',updateAvailable?'隐私，有版本更新':'隐私');}}
+function paintUpdateBadge(){for(const button of document.querySelectorAll('nav [data-page="隐私"],button[data-action="update"]')){const label=button.dataset.page==='隐私'?'隐私':'检查更新';button.classList.toggle('has-new-update',updateAvailable);button.setAttribute('aria-label',updateAvailable?label+'，有版本更新':label);}}
 const checkForUpdate=createUpdater({notify,onAvailable:available=>{updateAvailable=available;paintUpdateBadge();}});
 window.addEventListener('online',()=>checkForUpdate.peek());
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkForUpdate.peek();});
@@ -176,7 +176,7 @@ function render() {
   stopCamera();
   for(const url of photoUrls)URL.revokeObjectURL(url);
   photoUrls=[];
-  if(!accountClient.loggedIn){document.querySelector('nav').innerHTML='';document.querySelector('header small').textContent='曾氏传承 · 身份验证';accountClient.loginView(content);content.insertAdjacentHTML('beforeend','<p class="muted login-version">当前版本 '+APP_VERSION+'</p><button class="login-release-button" data-action="release-log">更新日志</button>'+releaseLogHtml()+certificateGuideHtml());return;}
+  if(!accountClient.loggedIn){document.querySelector('nav').innerHTML='';document.querySelector('header small').textContent='曾氏传承 · 身份验证';accountClient.loginView(content);content.insertAdjacentHTML('beforeend','<p class="muted login-version">当前版本 '+APP_VERSION+'</p><button class="login-release-button" data-action="release-log">更新日志</button>'+releaseLogHtml()+certificateGuideHtml());paintUpdateBadge();return;}
   document.querySelector('header small').textContent=accountClient.profile.identity+'（'+accountClient.profile.name+'）';
   document.querySelector('nav').innerHTML = (isOwner(accountClient.profile)?['家规','奴才管理','任务管理','档案','订阅','隐私']:['家规','今日','任务','积分','档案','订阅','隐私']).map(name=>`<button data-page="${name}" class="${name==='积分'&&roleController.reviews.some(r=>r.unread)?'has-new-review':''}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name==='家规'?'曾氏':name}</button>`).join('');paintUpdateBadge();
   document.querySelector('h1').textContent = 'ZENG LEGACY';
@@ -252,6 +252,7 @@ function render() {
     content.querySelector('.daily-share')?.insertAdjacentHTML('beforeend','<p id="archive-status" role="status"></p>');
     paintArchiveStatus();
   }
+  paintUpdateBadge();
 }
 function renderRitual() {
   const kind=ritualKind;

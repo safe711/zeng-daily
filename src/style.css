@@ -310,3 +310,5 @@ dialog .task-schedule{grid-template-columns:minmax(0,1fr)}dialog :is(button,lege
 .estate-dot,.estate-dot.is-tool{width:32px;height:32px;border:0;box-shadow:none;background:transparent;display:grid;place-items:center}.estate-dot::before{content:"";position:absolute;inset:8px;border:1px solid #eedbad55;border-radius:50%;background:#22181144}.estate-dot span{position:relative;z-index:1}.estate-dot:hover::before,.estate-dot:focus-visible::before{background:#d6af5777}
 
 nav button.has-new-update{position:relative}nav button.has-new-update::after{content:"";position:absolute;right:8px;top:5px;width:7px;height:7px;border-radius:50%;background:#ed5151;box-shadow:0 0 0 2px #131313;pointer-events:none}
+
+button[data-action="update"].has-new-update{position:relative}button[data-action="update"].has-new-update::after{content:"";position:absolute;right:8px;top:5px;width:7px;height:7px;border-radius:50%;background:#ed5151;pointer-events:none}

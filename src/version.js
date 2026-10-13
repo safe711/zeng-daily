@@ -1,6 +1,7 @@
-export const APP_VERSION='2.4.6';
+export const APP_VERSION='2.4.7';
 export const CLIENT_BUILD=`daily-shell-v${APP_VERSION}`;
 export const RELEASES=[
+  {version:'2.4.7',date:'2026-10-13',changes:['检查更新按钮与隐私标签同步显示新版红点，登录页和隐私页重绘后仍保留，更新完成后同步消失。']},
   {version:'2.4.6',date:'2026-10-13',changes:['曾仪像素角色换为微微偏黄的浅橘金发，参考照片穿棕帽、墨镜、豹纹围巾、棕色夹克、蓝色牛仔裤和棕色靴子；全套动作、场景、角色预览及留影统一更新。']},
   {version:'2.4.5',date:'2026-10-13',changes:['挡灾奴磕头时随机轮播200条健康、平安、吉祥祝福语，两个挡灾奴共用洗牌队列，一轮播完前不重复；头顶气泡错开显示、文句稳定停留后更换。']},
   {version:'2.4.4',date:'2026-10-13',changes:['挡灾奴磕头独立使用Death第6、7、8、9、10帧顺序循环，普通奴才保持原循环；挡灾角色位置固定，颈部锁链跟随动作定位。']},
