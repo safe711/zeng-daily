@@ -34,11 +34,11 @@ export function drawPaperDoll(c,actor,t,scale=1){
  const skin=a.skin||'#e7b891',hair=a.hairColor||'#45312b',cloth=top?.style||'#958368',prison=a.top==='slave-base',pants=bottom?.style||(prison?'#d9d4c7':'#514744'),outline='#382820';
  const bob=walking&&phase%2?1:0,torso=crouch?-33:-42,head=torso-25+bend,stride=walking?(phase%2?2:-2):0;
  c.save();c.imageSmoothingEnabled=false;c.translate(Math.round(actor.x),Math.round(actor.y));c.scale((actor.direction||1)*scale,scale);
- const r=(x,y,w,h,color)=>rect(c,x,y+bob,w,h,color),shade=(color,n)=>dollShade(color,n);
+ let layer='body';const r=(x,y,w,h,color)=>{const face=layer==='head',sx=face?1.45:.9,sy=face?1.4:.72,py=face?torso*.72-2+(y-head-22)*sy:y*sy;rect(c,x*sx,py+bob,Math.max(1,w*sx),Math.max(1,h*sy),color);},shade=(color,n)=>dollShade(color,n);
  // A stepped ground shadow and independent back hair establish depth.
  r(-15,0,30,2,'#241b2259');r(-11,-1,22,4,'#241b2235');
- if(a.hair==='long'){r(-11,head+3,23,31,outline);r(-10,head+2,21,31,hair);r(-8,head+4,3,27,shade(hair,14));r(7,head+5,3,28,shade(hair,-13));}
- const boot=(x,y)=>{const color=shoe?.style||'#564335';r(x-1,y,10,5,outline);r(x,y,8,3,color);r(x,y,7,1,shade(color,24));r(x-1,y+4,10,1,'#292423');if(a.shoes==='gold-shoes'){r(x+1,y+1,5,1,'#f0cd81');r(x+6,y,1,3,'#b39149');}};
+ layer='head';if(a.hair==='long'){r(-11,head+3,23,31,outline);r(-10,head+2,21,31,hair);r(-8,head+4,3,27,shade(hair,14));r(7,head+5,3,28,shade(hair,-13));}
+ layer='body';const boot=(x,y)=>{const color=shoe?.style||'#564335';r(x-1,y,10,5,outline);r(x,y,8,3,color);r(x,y,7,1,shade(color,24));r(x-1,y+4,10,1,'#292423');if(a.shoes==='gold-shoes'){r(x+1,y+1,5,1,'#f0cd81');r(x+6,y,1,3,'#b39149');}};
  const trouser=(x,y,w,h)=>{r(x-1,y-1,w+2,h+2,outline);r(x,y,w,h,pants);r(x,y,2,h,shade(pants,17));r(x+w-2,y,2,h,shade(pants,-20));r(x+2,y+2,1,h-4,shade(pants,-9));if(prison&&!bottom)for(let k=2;k<h;k+=5)r(x,y+k,w,2,'#444744');if(a.bottom==='brocade-pants'){for(let k=3;k<h;k+=5){r(x+2,y+k,2,1,'#b8945b');r(x+3,y+k-1,1,3,'#b8945b');}}};
  if(crouch){trouser(-12,-12,12,8);trouser(1,-12,12,8);r(-8,-6,17,4,shade(pants,-12));boot(-16,-4);boot(8,-4);}else{trouser(-9,-20+stride,7,16);trouser(3,-20-stride,7,16);boot(-10,-4+stride);boot(3,-4-stride);}
  // Neck, tailored torso, collar seam and cloth highlights remain separate slots.
@@ -57,18 +57,18 @@ export function drawPaperDoll(c,actor,t,scale=1){
  if(pose==='pray'){r(-6,torso+9,12,5,shade(skin,-25));r(-5,torso+9,5,3,skin);r(1,torso+8,4,4,skin);r(0,torso+6,1,8,shade(skin,21));}
  if(pose==='give'){r(15,torso+14,11,4,shade(skin,-21));r(16,torso+14,9,2,skin);}
  // Sculpted head: outline, cheek planes, eyelids, catchlights and warm rim light.
- r(-7,head,15,1,outline);r(-9,head+1,19,3,outline);r(-10,head+4,21,13,outline);r(-8,head+17,17,4,outline);r(-5,head+21,11,2,outline);
+ layer='head';r(-7,head,15,1,outline);r(-9,head+1,19,3,outline);r(-10,head+4,21,13,outline);r(-8,head+17,17,4,outline);r(-5,head+21,11,2,outline);
  r(-8,head+2,17,15,skin);r(-7,head+17,15,3,skin);r(-4,head+20,9,2,skin);r(-9,head+5,2,10,shade(skin,13));r(7,head+5,3,11,shade(skin,-22));r(5,head+16,3,3,shade(skin,-18));r(-4,head+20,8,1,shade(skin,-17));
  r(-12,head+8,3,6,shade(skin,-24));r(-11,head+9,2,3,skin);r(10,head+8,3,6,shade(skin,-30));r(10,head+9,2,3,skin);
- r(-6,head+7,4,1,shade(hair,-7));r(3,head+7,4,1,shade(hair,-7));const blink=Math.floor(t/190)%25===0;
- for(const x of [-6,3]){r(x,head+10,4,blink?1:3,'#523a2d');if(!blink){r(x,head+11,3,2,'#d7c7a7');r(x+1,head+10,2,3,'#322c25');r(x+1,head+10,1,1,'#fff0ca');}r(x-1,head+13,4,1,shade(skin,-15));}
- r(0,head+11,1,5,shade(skin,14));r(1,head+13,2,3,shade(skin,-20));r(-7,head+15,3,1,'#cc9078');r(6,head+15,3,1,'#c48a75');
- if(a.expression==='smile'){r(-2,head+18,5,1,'#935b4b');r(-1,head+19,3,1,'#a96c55');}else{r(-1,head+18,4,1,a.expression==='serious'?'#784d40':'#a16651');r(0,head+19,2,1,shade(skin,13));}if(a.expression==='serious'){r(-6,head+8,2,1,hair);r(5,head+8,2,1,hair);}
+ r(-6,head+7,3,1,shade(hair,13));r(4,head+7,3,1,shade(hair,13));const blink=Math.floor(t/190)%25===0;
+ for(const x of [-6,3]){r(x,head+9,4,blink?1:5,'#523a2d');if(!blink){r(x,head+10,3,4,'#f0dec0');r(x+1,head+9,2,5,'#43392f');r(x+1,head+9,1,2,'#fff4d9');r(x+2,head+12,1,1,'#ac8561');}r(x,head+14,3,1,shade(skin,-8));}
+ r(0,head+14,1,2,shade(skin,14));r(1,head+15,1,1,shade(skin,-13));r(-7,head+15,3,2,'#dd9a87');r(6,head+15,3,2,'#d99380');
+ if(a.expression==='smile'){r(-2,head+18,5,1,'#935b4b');r(-1,head+19,3,1,'#a96c55');}else{r(-1,head+18,3,1,a.expression==='serious'?'#946954':'#ae725c');r(0,head+19,2,1,shade(skin,13));}if(a.expression==='serious'){r(-6,head+8,2,1,hair);r(5,head+8,2,1,hair);}
  // Hair clusters are shaded individually rather than one flat rectangle.
  r(-7,head-3,16,3,shade(hair,-16));r(-10,head,22,5,hair);r(-11,head+3,5,7,hair);r(7,head+2,5,8,shade(hair,-11));r(-7,head-1,5,2,shade(hair,24));r(-4,head,7,1,shade(hair,35));r(4,head+1,5,1,shade(hair,13));r(-9,head+2,2,5,shade(hair,16));r(-6,head+4,4,2,hair);r(-2,head+3,4,2,hair);r(2,head+4,2,3,hair);r(9,head+5,2,5,shade(hair,-22));
  if(a.hair==='long'){for(const [x,d]of[[-13,15],[10,-12]]){r(x,head+6,4,23,shade(hair,d));r(x+1,head+9,1,17,shade(hair,d+16));r(x+2,head+22,2,7,shade(hair,d-15));}r(-12,head+28,3,3,shade(hair,-10));r(10,head+28,3,3,shade(hair,-19));}
  // Neck accessories keep their nine distinct motifs and metallic highlights.
- if(collar){const y=torso-3;r(-7,y,15,5,outline);r(-6,y+1,13,3,collar.style);r(-6,y+1,12,1,shade(collar.style,30));
+ layer='body';if(collar){const y=torso-3;r(-7,y,15,5,outline);r(-6,y+1,13,3,collar.style);r(-6,y+1,12,1,shade(collar.style,30));
   if(a.collar==='pink-collar'){r(-4,y,4,6,'#da91ac');r(3,y,4,6,'#ba6d96');r(-3,y+1,2,2,'#f2c3ce');r(4,y+1,2,2,'#ebb3cc');r(0,y+1,3,3,'#a35f87');r(1,y+2,1,1,'#f4d1cf');}
   else if(a.collar==='jade-collar'){for(let x=-6;x<7;x+=3){r(x,y+1,3,3,'#3c786b');r(x,y+1,2,2,'#8bc7a2');r(x,y+1,1,1,'#d3e8bf');}}
   else if(['leather-collar','black-collar'].includes(a.collar)){for(let x=-5;x<7;x+=4){r(x,y+2,2,2,'#b7925d');r(x,y+2,1,1,'#f4d49b');}r(0,y+4,3,3,'#dab977');r(1,y+5,1,1,outline);}
@@ -77,9 +77,9 @@ export function drawPaperDoll(c,actor,t,scale=1){
   else if(a.collar==='royal-collar'){r(-6,y+3,13,1,'#d8b578');for(let x=-5;x<7;x+=4)r(x,y+1,2,1,'#cda369');r(-1,y+4,4,4,'#a97837');r(0,y+4,2,3,'#efce84');r(0,y+4,1,1,'#fff0b2');}
   else if(a.collar==='bell-collar'){r(-1,y+4,4,4,'#ac7d35');r(0,y+4,2,2,'#f3d187');r(-2,y+7,6,1,'#d7ae60');r(0,y+7,2,1,'#614b31');}
   else{for(let x=-5;x<7;x+=4){r(x,y+2,3,1,'#d7ae73');r(x+1,y+1,1,3,'#d7ae73');}r(0,y+4,3,3,'#deb779');}}
- if(a.head==='crown'){const y=head-8;r(-10,y+5,22,4,'#775429');r(-9,y+5,20,2,'#d5a446');r(-8,y+5,17,1,'#ffe4a0');for(const [x,h]of[[-9,4],[-4,6],[2,8],[8,5]]){r(x,y+5-h,3,h,'#b67d30');r(x,y+5-h,2,h-1,'#f0c567');r(x,y+4-h,1,1,'#fff0c2');}r(0,y+5,3,2,'#aa5140');r(1,y+5,1,1,'#ec9d6c');}
+ layer='head';if(a.head==='crown'){const y=head-8;r(-10,y+5,22,4,'#775429');r(-9,y+5,20,2,'#d5a446');r(-8,y+5,17,1,'#ffe4a0');for(const [x,h]of[[-9,4],[-4,6],[2,8],[8,5]]){r(x,y+5-h,3,h,'#b67d30');r(x,y+5-h,2,h-1,'#f0c567');r(x,y+4-h,1,1,'#fff0c2');}r(0,y+5,3,2,'#aa5140');r(1,y+5,1,1,'#ec9d6c');}
  else if(a.head==='jade-pin'){r(3,head-2,12,2,'#977243');r(3,head-2,11,1,'#e2c897');r(9,head-6,4,5,'#376d60');r(9,head-6,3,3,'#8bbc93');r(10,head-6,1,1,'#d8e5bc');r(12,head-1,1,5,'#bc9959');}
- if(a.hand==='book-hand'){r(16,torso+10,11,14,outline);r(17,torso+11,9,12,'#bd9d6a');r(18,torso+12,3,10,'#e2c995');r(22,torso+12,3,10,'#d3b883');r(21,torso+11,1,12,'#71553b');for(let y=torso+14;y<torso+21;y+=3){r(18,y,2,1,'#a2875c');r(23,y,2,1,'#9c7c51');}}
+ layer='body';if(a.hand==='book-hand'){r(16,torso+10,11,14,outline);r(17,torso+11,9,12,'#bd9d6a');r(18,torso+12,3,10,'#e2c995');r(22,torso+12,3,10,'#d3b883');r(21,torso+11,1,12,'#71553b');for(let y=torso+14;y<torso+21;y+=3){r(18,y,2,1,'#a2875c');r(23,y,2,1,'#9c7c51');}}
  if(pose==='play'){r(20,torso+13,8,8,'#9e5345');r(21,torso+13,5,6,'#d69369');r(22,torso+14,2,2,'#f1c591');r(25,torso+17,2,3,'#658087');}
  if(pose==='pray'){r(-17,-1,34,2,'#b76a5a35');for(let i=0;i<4;i++){const y=-20-(Math.floor(t/190)+i*5)%24;r(-18+i*11,y,1,2,'#d49d7d');r(-17+i*11,y+1,1,1,'#e8c59a');}}
  c.restore();
