@@ -1,6 +1,6 @@
 // Persisted motions shared by the browser and account server. Distances are
 // world pixels; both peers advance the same pickup/lead/return itinerary.
-export const LEASH_DISTANCE=58;
+export const LEASH_DISTANCE=104;
 const point=p=>({scene:p.scene,x:p.x,y:p.y,direction:p.direction||1});
 const duration=(a,b,speed=.06)=>Math.max(1,Math.hypot(b.x-a.x,b.y-a.y)/speed);
 export function makeLeadMotion(id,ownerId,targetId,leader,dog,destination,kind,site,startedAt){
@@ -34,3 +34,12 @@ export function makeRideMotion(id,ownerId,targetId,leader,dog,startedAt){const d
 
 export const BED_FOOTWEAR_POINT={x:580,y:316};
 export function estateShoeTarget(leader,site=null){const shoe=site==='bed'&&leader.scene==='bedroom'?{...BED_FOOTWEAR_POINT}:site==='desk'?{x:leader.x-44,y:leader.y}:{x:leader.x,y:leader.y};return {shoe:{...shoe,scene:leader.scene,itemId:leader.avatar?.shoes||null},dog:{scene:leader.scene,x:shoe.x-27,y:shoe.y,direction:1}};}
+
+// Follow the owner's walked path, with one full character of clear space.
+export function leashTrailPoint(trail,leader,dog){
+ if(!trail.length||trail.at(-1).scene!==leader.scene){trail.length=0;trail.push({...point(leader),x:leader.x-leader.direction*LEASH_DISTANCE});trail.push(point(leader));}
+ const last=trail.at(-1);if(Math.hypot(leader.x-last.x,leader.y-last.y)>.1)trail.push(point(leader));
+ let remaining=LEASH_DISTANCE;
+ for(let i=trail.length-1;i>0;i--){const a=trail[i-1],b=trail[i],length=Math.hypot(b.x-a.x,b.y-a.y);if(length>=remaining&&length>0){const k=remaining/length;const result={scene:leader.scene,x:b.x+(a.x-b.x)*k,y:b.y+(a.y-b.y)*k,direction:Math.abs(b.x-a.x)>.1?(b.x>a.x?1:-1):b.direction};if(i>1)trail.splice(0,i-1);return result;}remaining-=length;}
+ const first=trail[0];return {...first,x:first.x-first.direction*remaining};
+}
