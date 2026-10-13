@@ -15,8 +15,8 @@ export function drawDisasterChain(c,actor,neck,time){
 
 export function drawTetherChain(c,start,end){const control={x:(start.x+end.x)/2,y:Math.max(start.y,end.y)+15},at=t=>({x:(1-t)*(1-t)*start.x+2*(1-t)*t*control.x+t*t*end.x,y:(1-t)*(1-t)*start.y+2*(1-t)*t*control.y+t*t*end.y}),length=Math.hypot(end.x-start.x,end.y-start.y)+20,count=Math.max(2,Math.ceil(length/6));c.save();for(let n=0;n<count;n++){const t=n/(count-1),p=at(t),q=at(Math.min(1,t+.01));c.save();c.translate(p.x,p.y);c.rotate(Math.atan2(q.y-p.y,q.x-p.x));c.beginPath();c.ellipse(0,0,4,n%2?1.1:2.5,0,0,Math.PI*2);c.strokeStyle='#333940';c.lineWidth=2.6;c.stroke();c.strokeStyle='#b3b9bd';c.lineWidth=1.1;c.stroke();c.restore();}c.restore();}
 
-// Guard posts use a high wall ring and heavier, readable iron links.
-export function guardChainAnchor(scene,site){return {x:site.x+16,y:Math.max(60,site.y-(scene==='courtyard'?128:140))};}
+// Guard posts use a mid-height wall ring and heavier, readable iron links.
+export function guardChainAnchor(scene,site){return {x:site.x+16,y:Math.max(60,site.y-(scene==='courtyard'?64:70))};}
 export function drawGuardChain(c,neck,anchor){
  const control={x:(neck.x+anchor.x)/2+24,y:(neck.y+anchor.y)/2+22},at=t=>({x:(1-t)**2*neck.x+2*(1-t)*t*control.x+t*t*anchor.x,y:(1-t)**2*neck.y+2*(1-t)*t*control.y+t*t*anchor.y});
  const count=Math.max(2,Math.ceil((Math.hypot(anchor.x-neck.x,anchor.y-neck.y)+20)/8));c.save();

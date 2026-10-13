@@ -10,9 +10,9 @@ const point=p=>({scene:p.scene,x:p.x,y:p.y,direction:p.direction||1});
 const duration=(a,b,speed=OWNER_LEAD_SPEED)=>Math.max(1,Math.hypot(b.x-a.x,b.y-a.y)/speed);
 export function makeLeadMotion(id,ownerId,targetId,leader,dog,destination,kind,site,startedAt){
  const direction=destination? (destination.x>=dog.x?1:-1):leader.direction||1;
- const pickup={...point(dog),x:dog.x+direction*LEASH_DISTANCE,direction};
- const stages=[{duration:duration(leader,pickup),ownerFrom:point(leader),ownerTo:pickup,dogFrom:point(dog),dogTo:point(dog),phase:'pickup'},{duration:400,ownerFrom:pickup,ownerTo:pickup,dogFrom:point(dog),dogTo:point(dog),phase:'attach'}];
- if(destination){const end={...point(destination),x:destination.x+direction*LEASH_DISTANCE,direction};stages.push({duration:duration(pickup,end),ownerFrom:pickup,ownerTo:end,dogFrom:{...point(dog),direction},dogTo:{...point(destination),direction},phase:'lead'});}
+ const pickup={...point(dog),x:dog.x+direction*28,direction:-direction},spaced={...point(dog),x:dog.x+direction*LEASH_DISTANCE,direction};
+ const stages=[{duration:duration(leader,pickup),ownerFrom:point(leader),ownerTo:pickup,dogFrom:point(dog),dogTo:point(dog),phase:'pickup'},{duration:400,ownerFrom:pickup,ownerTo:pickup,dogFrom:point(dog),dogTo:point(dog),phase:'attach'},{duration:duration(pickup,spaced),ownerFrom:pickup,ownerTo:spaced,dogFrom:point(dog),dogTo:{...point(dog),direction},phase:'space'}];
+ if(destination){const end={...point(destination),x:destination.x+direction*LEASH_DISTANCE,direction};stages.push({duration:duration(spaced,end),ownerFrom:spaced,ownerTo:end,dogFrom:{...point(dog),direction},dogTo:{...point(destination),direction},phase:'lead'});}
  return {id,ownerId,targetId,kind,site,scene:dog.scene,startedAt,stages};
 }
 export function makeReturnMotion(id,targetId,dog,startedAt){
