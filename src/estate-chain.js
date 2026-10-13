@@ -12,3 +12,5 @@ export function drawDisasterChain(c,actor,neck,time){
  }
  c.restore();
 }
+
+export function drawTetherChain(c,start,end){const control={x:(start.x+end.x)/2,y:Math.max(start.y,end.y)+15},at=t=>({x:(1-t)*(1-t)*start.x+2*(1-t)*t*control.x+t*t*end.x,y:(1-t)*(1-t)*start.y+2*(1-t)*t*control.y+t*t*end.y}),length=Math.hypot(end.x-start.x,end.y-start.y)+20,count=Math.max(2,Math.ceil(length/6));c.save();for(let n=0;n<count;n++){const t=n/(count-1),p=at(t),q=at(Math.min(1,t+.01));c.save();c.translate(p.x,p.y);c.rotate(Math.atan2(q.y-p.y,q.x-p.x));c.beginPath();c.ellipse(0,0,4,n%2?1.1:2.5,0,0,Math.PI*2);c.strokeStyle='#333940';c.lineWidth=2.6;c.stroke();c.strokeStyle='#b3b9bd';c.lineWidth=1.1;c.stroke();c.restore();}c.restore();}
