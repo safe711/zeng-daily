@@ -49,7 +49,12 @@ const seal=document.querySelector('.seal');
 seal.textContent='';seal.setAttribute('role','img');seal.setAttribute('aria-label','ZENG LEGACY 龙纹标识');
 const message = document.querySelector('#message');
 const notify=createNotifier(message);
-const checkForUpdate=createUpdater({notify});
+let updateAvailable=false;
+function paintUpdateBadge(){const button=document.querySelector('nav [data-page="隐私"]');if(button){button.classList.toggle('has-new-update',updateAvailable);button.setAttribute('aria-label',updateAvailable?'隐私，有版本更新':'隐私');}}
+const checkForUpdate=createUpdater({notify,onAvailable:available=>{updateAvailable=available;paintUpdateBadge();}});
+window.addEventListener('online',()=>checkForUpdate.peek());
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkForUpdate.peek();});
+setInterval(()=>{if(!document.hidden)checkForUpdate.peek();},300000);
 let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
@@ -173,7 +178,7 @@ function render() {
   photoUrls=[];
   if(!accountClient.loggedIn){document.querySelector('nav').innerHTML='';document.querySelector('header small').textContent='曾氏传承 · 身份验证';accountClient.loginView(content);content.insertAdjacentHTML('beforeend','<p class="muted login-version">当前版本 '+APP_VERSION+'</p><button class="login-release-button" data-action="release-log">更新日志</button>'+releaseLogHtml()+certificateGuideHtml());return;}
   document.querySelector('header small').textContent=accountClient.profile.identity+'（'+accountClient.profile.name+'）';
-  document.querySelector('nav').innerHTML = (isOwner(accountClient.profile)?['家规','奴才管理','任务管理','档案','订阅','隐私']:['家规','今日','任务','积分','档案','订阅','隐私']).map(name=>`<button data-page="${name}" class="${name==='积分'&&roleController.reviews.some(r=>r.unread)?'has-new-review':''}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name==='家规'?'曾氏':name}</button>`).join('');
+  document.querySelector('nav').innerHTML = (isOwner(accountClient.profile)?['家规','奴才管理','任务管理','档案','订阅','隐私']:['家规','今日','任务','积分','档案','订阅','隐私']).map(name=>`<button data-page="${name}" class="${name==='积分'&&roleController.reviews.some(r=>r.unread)?'has-new-review':''}" aria-current="${page===name?'page':'false'}">${name==='今日'?'行礼':name==='家规'?'曾氏':name}</button>`).join('');paintUpdateBadge();
   document.querySelector('h1').textContent = 'ZENG LEGACY';
 
   const today = state.days[dayKey()] || {};
@@ -591,9 +596,11 @@ render();
 accountClient.boot();
 retryMedia();
 if(storageFailed)notify('本地读取异常，已保护原始数据。请进入隐私页恢复备份。');
-if('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('./sw.js').then(offlineStatus).catch(()=>notify('离线安装失败，请保持联网后重新打开。'));
+if('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('./sw.js').then(()=>{offlineStatus();checkForUpdate.peek();}).catch(()=>notify('离线安装失败，请保持联网后重新打开。'));
 pushClient.refresh().then(configuration=>{if(!configuration)return;if(configuration.photosConfigured||configuration.reportsConfigured||configuration.shoesConfigured)nasToken='private-session';if(page==='订阅'&&!state.subscription.contractId)render();if(nasToken)retryMedia();});
 
 if(staticHosting){lanBackup.run();window.addEventListener("online",()=>lanBackup.run());document.addEventListener("visibilitychange",()=>{if(!document.hidden)lanBackup.run();});setInterval(()=>{if(!document.hidden)lanBackup.run();},30000);}
 
 installPhotoCameras(content,{notify,blocked:()=>hidden||state.settings.paused,owner:()=>accountClient.profile?.id||''});
+
+checkForUpdate.peek();

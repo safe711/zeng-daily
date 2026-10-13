@@ -28,13 +28,14 @@ export function drawFurniture(c,p,t){const x=p.x,y=p.y,id=p.itemId;const r=(dx,d
 const dollPalettes=new Map();
 function dollShade(hex,amount){const key=hex+':'+amount;if(dollPalettes.has(key))return dollPalettes.get(key);const n=parseInt(hex.slice(1),16),channels=[n>>16,(n>>8)&255,n&255].map(v=>Math.max(0,Math.min(255,v+amount)));const result='#'+channels.map(v=>v.toString(16).padStart(2,'0')).join('');dollPalettes.set(key,result);return result;}
 export function drawPaperDoll(c,actor,t,scale=1){
- const a=actor.avatar||{},pose=actor.pose||'idle',phase=Math.floor(t/150)%4;
+ const a=actor.avatar||{},pose=actor.pose||'idle',phase=Math.floor(t/90)%8;
+ const female=actor.gender==='female',slave=actor.role!=='owner',longHair=a.hair==='long';
  const crouch=['kneel','pray','stationed','feeding','rest','prostrate','bow'].includes(pose),walking=['walk','follow'].includes(pose),bend=['bow','feeding','pray'].includes(pose)?2:0;
  const lookup=id=>ESTATE_CATALOG.find(i=>i.id===id),top=lookup(a.top),bottom=lookup(a.bottom),shoe=lookup(a.shoes),collar=lookup(a.collar);
  const skin=a.skin||'#e7b891',hair=a.hairColor||'#45312b',cloth=top?.style||'#958368',prison=a.top==='slave-base',pants=bottom?.style||(prison?'#d9d4c7':'#514744'),outline='#382820';
- const bow=['prostrate','bow'].includes(pose)?[0,.25,.7,1,1,.7,.25,0][Math.floor(t/180)%8]:0;const bob=walking&&phase%2?1:0,torso=crouch?-33:-42,head=torso-25+bend,stride=walking?(phase%2?2:-2):0;
+ const bow=['prostrate','bow'].includes(pose)?[0,.25,.7,1,1,.7,.25,0][Math.floor(t/180)%8]:0;const bob=walking?[0,0,1,1,0,0,1,1][phase]:Math.floor(t/120)%8===3?1:0,torso=crouch?-33:-42,head=torso-25+bend,stride=walking?[0,1,2,1,0,-1,-2,-1][phase]:0;
  c.save();c.imageSmoothingEnabled=false;c.translate(Math.round(actor.x),Math.round(actor.y));c.scale((actor.direction||1)*scale,scale);
- let layer='body';const r=(x,y,w,h,color)=>{const face=layer==='head',sx=face?1.45:.9,sy=face?1.4:.72,py=face?torso*.72-2+(y-head-22)*sy:y*sy;let px=x*sx,yy=py+bob+(face?28:4)*bow,ww=Math.max(1,w*sx),hh=Math.max(1,h*sy);if(face&&bow>.6){const center=torso*.72-18;px=-(py-center)-hh+18*bow;yy=x*sx+center+28*bow;[ww,hh]=[hh,ww];}else if(face)px+=18*bow;rect(c,px,yy,ww,hh,color);},shade=(color,n)=>dollShade(color,n);
+ let layer='body';const r=(x,y,w,h,color)=>{const face=layer==='head',sx=face?(slave?1.15:1.45):.85,sy=face?(slave?1.15:1.4):.78,py=face?torso*.78-2+(y-head-22)*sy:y*sy;let px=x*sx,yy=py+bob+(face?28:4)*bow,ww=Math.max(1,w*sx),hh=Math.max(1,h*sy);if(face&&bow>.6){const center=torso*.78-18;px=-(py-center)-hh+18*bow;yy=x*sx+center+28*bow;[ww,hh]=[hh,ww];}else if(face)px+=18*bow;rect(c,px,yy,ww,hh,color);},shade=(color,n)=>dollShade(color,n);
  // A stepped ground shadow and independent back hair establish depth.
  r(-15,0,30,2,'#241b2259');r(-11,-1,22,4,'#241b2235');
  layer='head';if(a.hair==='long'){r(-11,head+3,23,31,outline);r(-10,head+2,21,31,hair);r(-8,head+4,3,27,shade(hair,14));r(7,head+5,3,28,shade(hair,-13));}
@@ -51,22 +52,25 @@ export function drawPaperDoll(c,actor,t,scale=1){
   if(['crest','gold-suit','silk','owner-base'].includes(a.top)){r(-8,torso+18,17,2,'#ba914c');r(-8,torso+18,15,1,'#e0bc76');r(-8,torso+2,1,15,'#b58c56');if(a.top!=='owner-base'){for(const x of [-5,4])for(let y=torso+6;y<torso+16;y+=5){r(x,y,3,1,'#d0b075');r(x+1,y-1,1,3,'#d0b075');}r(-1,torso+6,3,8,'#e8c680');}}
  }
  // Articulated sleeves, lit fingertips and cuffs follow the existing poses.
- const swing=walking?(phase%2?2:-2):0;
+ const swing=walking?[0,-1,-2,-1,0,1,2,1][phase]:0;
  const arm=(x,offset)=>{r(x-1,torso+4+offset,7,14,outline);r(x,torso+4+offset,5,12,cloth);r(x,torso+5+offset,1,9,shade(cloth,23));r(x+4,torso+5+offset,1,10,shade(cloth,-26));if(prison)for(let k=3;k<11;k+=4)r(x,torso+4+offset+k,5,2,'#414641');r(x,torso+15+offset,5,2,shade(cloth,-30));r(x,torso+17+offset,5,5,shade(skin,-28));r(x,torso+17+offset,4,4,skin);r(x+1,torso+17+offset,2,1,shade(skin,17));r(x+3,torso+19+offset,1,2,shade(skin,-17));};
  arm(-15,swing);arm(12,-swing);if(bow>.6){r(8,-5,15,3,skin);r(20,-5,4,3,shade(skin,-20));}
  if(pose==='pray'){r(-6,torso+9,12,5,shade(skin,-25));r(-5,torso+9,5,3,skin);r(1,torso+8,4,4,skin);r(0,torso+6,1,8,shade(skin,21));}
  if(pose==='give'){r(15,torso+14,11,4,shade(skin,-21));r(16,torso+14,9,2,skin);}
- // Sculpted head: outline, cheek planes, eyelids, catchlights and warm rim light.
- layer='head';r(-7,head,15,1,outline);r(-9,head+1,19,3,outline);r(-10,head+4,21,13,outline);r(-8,head+17,17,4,outline);r(-5,head+21,11,2,outline);
- r(-8,head+2,17,15,skin);r(-7,head+17,15,3,skin);r(-4,head+20,9,2,skin);r(-9,head+5,2,10,shade(skin,13));r(7,head+5,3,11,shade(skin,-22));r(5,head+16,3,3,shade(skin,-18));r(-4,head+20,8,1,shade(skin,-17));
- r(-12,head+8,3,6,shade(skin,-24));r(-11,head+9,2,3,skin);r(10,head+8,3,6,shade(skin,-30));r(10,head+9,2,3,skin);
- r(-6,head+7,3,1,shade(hair,13));r(4,head+7,3,1,shade(hair,13));const blink=Math.floor(t/190)%25===0;
- for(const x of [-6,3]){r(x,head+9,4,blink?1:5,'#523a2d');if(!blink){r(x,head+10,3,4,'#f0dec0');r(x+1,head+9,2,5,'#43392f');r(x+1,head+9,1,2,'#fff4d9');r(x+2,head+12,1,1,'#ac8561');}r(x,head+14,3,1,shade(skin,-8));}
- r(0,head+14,1,2,shade(skin,14));r(1,head+15,1,1,shade(skin,-13));r(-7,head+15,3,2,'#dd9a87');r(6,head+15,3,2,'#d99380');
- if(a.expression==='smile'){r(-2,head+18,5,1,'#935b4b');r(-1,head+19,3,1,'#a96c55');}else{r(-1,head+18,3,1,a.expression==='serious'?'#946954':'#ae725c');r(0,head+19,2,1,shade(skin,13));}if(a.expression==='serious'){r(-6,head+8,2,1,hair);r(5,head+8,2,1,hair);}
- // Hair clusters are shaded individually rather than one flat rectangle.
- r(-7,head-3,16,3,shade(hair,-16));r(-10,head,22,5,hair);r(-11,head+3,5,7,hair);r(7,head+2,5,8,shade(hair,-11));r(-7,head-1,5,2,shade(hair,24));r(-4,head,7,1,shade(hair,35));r(4,head+1,5,1,shade(hair,13));r(-9,head+2,2,5,shade(hair,16));r(-6,head+4,4,2,hair);r(-2,head+3,4,2,hair);r(2,head+4,2,3,hair);r(9,head+5,2,5,shade(hair,-22));
- if(a.hair==='long'){for(const [x,d]of[[-13,15],[10,-12]]){r(x,head+6,4,23,shade(hair,d));r(x+1,head+9,1,17,shade(hair,d+16));r(x+2,head+22,2,7,shade(hair,d-15));}r(-12,head+28,3,3,shade(hair,-10));r(10,head+28,3,3,shade(hair,-19));}
+ // Original male/female anime pixel heads, drawn as independent paper-doll layers.
+ layer='head';const ink='#33272f',light=shade(skin,20),warm=shade(skin,-22),blink=Math.floor(t/120)%36===0;
+ r(-6,head-2,14,2,ink);r(-9,head,20,4,ink);r(-10,head+4,22,12,ink);r(-8,head+16,19,3,ink);r(-6,head+19,15,2,ink);r(-3,head+21,9,1,ink);
+ r(-8,head+2,18,14,skin);r(-7,head+16,17,3,skin);r(-5,head+19,13,2,skin);r(-2,head+21,7,1,warm);
+ r(-8,head+4,2,10,light);r(-6,head+5,3,2,shade(skin,12));r(8,head+6,2,9,warm);r(6,head+17,3,2,warm);r(-10,head+10,2,5,warm);r(-10,head+11,1,3,skin);
+ // White catchlights and colored iris clusters keep eyes readable at scene size.
+ for(const x of [-6,3]){r(x-1,head+8,5,1,shade(hair,-9));r(x,head+10,5,blink?1:6,ink);if(!blink){r(x,head+11,4,4,'#fff0d8');r(x+2,head+10,2,5,female?'#895748':'#4d696a');r(x+2,head+10,1,2,'#fff9e6');r(x+3,head+14,1,1,female?'#d29863':'#9bbb9f');}if(female){r(x-1,head+9,1,2,ink);r(x+4,head+10,1,1,ink);}}
+ r(0,head+16,1,1,light);r(1,head+17,1,1,warm);r(-7,head+17,3,1,'#e9aa96');r(7,head+17,2,1,'#dc9e8b');
+ r(0,head+19,a.expression==='smile'?4:3,1,'#a16d62');if(a.expression==='smile')r(1,head+20,2,1,'#bb7c6b');
+ // Multi-tone swept bangs and jagged rim light; sex changes the silhouette, not just color.
+ r(-6,head-4,14,2,shade(hair,-17));r(-9,head-2,20,4,hair);r(-10,head+2,22,3,hair);r(-11,head+4,4,7,shade(hair,-14));r(9,head+4,3,9,shade(hair,-19));
+ r(-7,head-2,4,2,shade(hair,24));r(-3,head-2,9,1,shade(hair,42));r(-7,head+1,6,1,shade(hair,31));r(-1,head,7,1,shade(hair,20));r(5,head+1,4,1,shade(hair,9));r(-9,head+3,2,4,shade(hair,12));
+ if(female){r(-8,head+4,3,3,hair);r(-5,head+3,3,5,hair);r(-1,head+3,2,3,hair);r(2,head+3,2,4,hair);r(6,head+4,3,3,shade(hair,-9));r(-6,head+4,1,2,shade(hair,15));if(longHair){for(const [x,shadeValue]of[[-12,9],[10,-16]]){r(x,head+8,3,19,shade(hair,shadeValue));r(x+1,head+9,1,14,shade(hair,shadeValue+21));r(x,head+25,2,5,shade(hair,shadeValue-8));r(x+1,head+29,1,2,shade(hair,-25));}r(10,head+18,2,1,shade(hair,15));}}
+ else{r(-3,head-6,3,3,hair);r(-2,head-5,1,1,shade(hair,25));r(2,head-5,4,3,hair);r(-8,head+4,3,3,hair);r(-4,head+3,3,5,hair);r(0,head+4,2,2,hair);r(4,head+4,3,3,hair);r(9,head+10,2,4,shade(hair,-22));r(-6,head+3,2,1,shade(hair,28));}
  // Neck accessories keep their nine distinct motifs and metallic highlights.
  layer='body';if(collar){const y=torso-3;r(-7,y,15,5,outline);r(-6,y+1,13,3,collar.style);r(-6,y+1,12,1,shade(collar.style,30));
   if(a.collar==='pink-collar'){r(-4,y,4,6,'#da91ac');r(3,y,4,6,'#ba6d96');r(-3,y+1,2,2,'#f2c3ce');r(4,y+1,2,2,'#ebb3cc');r(0,y+1,3,3,'#a35f87');r(1,y+2,1,1,'#f4d1cf');}

@@ -1,7 +1,7 @@
 import {validDate,RITUAL_KINDS} from './model.js';
 let database;
 let mediaAccount=null;
-export function setMediaAccount(id){if(id!==null&&!/^(?:ZENG-(?:DS|DZ)-\d{3}|ZENG_OWNER_\d{3})$/.test(id))throw Error('账号编号无效');if(id===mediaAccount)return;resetPhotoUploads();const prior=database;database=undefined;mediaAccount=id;prior?.then(db=>db.close()).catch(()=>{});}
+export function setMediaAccount(id){if(id!==null&&!/^(?:ZENG-(?:DS|DZ)-\d{3}|OWNERTEST|ZENG_OWNER_\d{3})$/.test(id))throw Error('账号编号无效');if(id===mediaAccount)return;resetPhotoUploads();const prior=database;database=undefined;mediaAccount=id;prior?.then(db=>db.close()).catch(()=>{});}
 let photoGeneration=0;
 export function resetPhotoUploads(){photoGeneration++;}
 export const mediaGeneration=()=>photoGeneration;
