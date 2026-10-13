@@ -105,6 +105,7 @@ export function validateState(state) {
   for (const record of state.records) if (!record || !string(record.text) || !string(record.date)) throw Error('记录无效');
   for (const entry of state.ledger) if (!entry || !Number.isSafeInteger(entry.points) || Math.abs(entry.points)>1000 || !['reward','warning','daily','task'].includes(entry.kind) || !string(entry.text) || !string(entry.date)) throw Error('积分数据无效');
   if (!state.profile || !string(state.profile.name) || !string(state.profile.notes) || !state.settings || typeof state.settings.hideOnLeave !== 'boolean' || typeof state.settings.paused !== 'boolean' || !RITUAL_KINDS.every(kind => state.settings[kind]==='' || /^([01]\d|2[0-3]):[0-5]\d$/.test(state.settings[kind]))) throw Error('设置无效');
+  validateAchievements(state);refreshAchievements(state);
   return state;
 }
 export function parseBackup(text) {
@@ -195,4 +196,43 @@ export function saveGift(state,{slot,id,master,item,icon,date,note},now=new Date
  validateGifts(next);
  if(next.masterGifts.length===slots-1&&slots<1200)next.giftSlots+=6;
  state.masterGifts=next.masterGifts;state.giftSlots=next.giftSlots;return record.id;
+}
+
+export const ACHIEVEMENT_CATEGORIES=['连续守礼','累计守礼','侍奉任务','主子赏赐','主子评价'];
+export const ACHIEVEMENT_RANKS=['普通','精良','稀有','史诗','传说','至尊'];
+const achievementSeries=[
+ ['streak',0,['初识奴规','一月守礼','恪守本分','百日门槛','半载不怠','终岁忠勤'],[7,30,60,90,180,365],['七日守礼，初入规矩之门。','三十日礼仪不断，初显勤谨。','六十日持之以恒，渐成习惯。','九十日连续守礼，迈向百日之境。','半载礼仪未曾中断，勤勉可鉴。','整整一年守礼不辍，荣登年度功勋。'],['calendar','chain','knot','gate','flame','phoenix']],
+ ['total',1,['奴籍初记','十日勤礼','三十日修习','百日奉礼','半年勤侍','岁月为证','千日守候','三年如一','五载奉礼','十载不忘'],[1,10,30,100,180,365,1000,1095,1825,3650],['第一日礼仪完成，奴籍功勋正式启录。','十日礼仪积累，勤勉初见。','累计三十日，礼仪修习渐入正轨。','百日积累，留下百次守礼印记。','累计半载，日课功勋渐渐厚。','三百六十五日的坚持，皆有记录。','千日礼仪积累，铸就珍贵功勋。','三年之数，守礼之志历久弥坚。','五载礼仪记载，成就非凡资历。','十载岁月凝为功勋，登临最高荣誉。'],['scroll','pages','book','clock','hourglass','sun','bell','rings','palace','eternity']],
+ ['task',2,['初领主命','五令奉行','十令不怠','勤侍之奴','百令奉行','二百令勤侍','五百令奉行','千令功勋'],[1,5,10,25,100,200,500,1000],['首次接受并完成主子布置的角色任务。','五项任务完成，初显执行能力。','十项任务记录，行动有始有终。','二十五次任务完成，勤勉有迹可循。','百项任务达成，获记百令功勋。','两百次任务积累，表现稳健。','五百次任务完成，成就卓著。','千项任务达成，荣获千令勋章。'],['seal','dossier','tools','shield','banner','tower','scepter','dragon']],
+ ['gift',3,['初蒙赏赐','五度蒙赏','十次恩赏','恩赏累累','百赏荣录','珍藏之奴'],[1,5,10,25,100,200],['首次获得主子给予的角色赏赐。','五次赏赐记录，值得珍藏。','十度蒙赏，荣誉渐丰。','二十五次赏赐，累积珍贵回忆。','百次赏赐载入奴籍荣誉册。','两百次赏赐，成就珍藏级荣誉。'],['gift','bouquet','gem','chest','crown','treasure']],
+ ['good',4,['初获嘉许','五次称许','十度嘉奖','勤侍有功','百次嘉许','荣誉满籍'],[1,5,10,25,100,200],['首次获得主子肯定，留下第一枚嘉许印记。','五度受到肯定，表现获得认可。','十次好评，荣誉持续积累。','二十五次嘉许，勤勉表现有目共睹。','百次好评，荣登嘉许功勋榜。','两百次好评，获得最高级嘉许徽章。'],['star','ribbon','laurel','radiance','wings','trophy']],
+ ['neutral',4,['初受审视','尚有不足','十次自省','勤省己过','百次磨砺'],[1,5,10,25,100],['首次获得中等评价，记录改进方向。','五次中评，提醒继续完善表现。','十次中评，积累值得反思的经验。','二十五次中评，记录成长与调整。','百次中评记录，见证漫长的磨砺历程。'],['eye','mirror','balance','hammer','mountain']],
+ ['bad',4,['初受训诫','五次警醒','十次记过','二十五次反省','百次训诫录'],[1,5,10,25,100],['首次获得差评，留下警醒记录。','五次差评，提醒重视不足。','十次差评记录，提示改进表现。','二十五次差评，汇集需要改进的经历。','百次差评记录，形成完整的反省档案。'],['warning','bolt','crack','thorn','chains']]
+];
+export const ACHIEVEMENTS=achievementSeries.flatMap(([series,category,names,thresholds,descriptions,motifs])=>names.map((name,i)=>({id:series+'-'+thresholds[i],series,category,name,threshold:thresholds[i],description:descriptions[i],motif:motifs[i],stage:i,rank:ACHIEVEMENT_RANKS[Math.round(i*5/(names.length-1))],condition:(series==='streak'?'连续完成每日全部礼仪':series==='total'?'累计完成每日全部礼仪':series==='task'?'完成侍奉任务':series==='gift'?'获得主子赏赐':({good:'获得好评',neutral:'获得中评',bad:'获得差评'})[series])+thresholds[i]+(['streak','total'].includes(series)?'天':'次')})));
+const achievementDate=t=>t&&Number.isFinite(Date.parse(t))?new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Hong_Kong',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(t)):null;
+export function achievementStats(state,now=new Date()){
+ const today=achievementDate(now.toISOString()),events=new Map((state.achievementEvents||[]).map(e=>[e.key,e]));
+ const add=(key,series,date,at)=>{if(!validDate(date)||date>today)return;const event={key,series,date,at:at&&Number.isFinite(Date.parse(at))?new Date(at).toISOString():null};const old=events.get(key);if(!old)events.set(key,event);else if(!old.at&&event.at)events.set(key,event);};
+ for(const [date,entry]of Object.entries(state.days||{}))if(RITUAL_KINDS.every(k=>!!entry[k])){const times=RITUAL_KINDS.map(k=>entry.ritualMeta?.[k]?.completedAt);add('day:'+date,'total',date,times.every(Boolean)?times.sort().at(-1):null);}
+ const ledgerCounts=new Map();for(const e of state.ledger||[])if(e.kind==='task'){const key=e.date+':'+e.text;ledgerCounts.set(key,(ledgerCounts.get(key)||0)+1);}
+ const matched=new Map();for(const task of state.tasks||[])if(task.done){const date=achievementDate(task.completedAt)||state.ledger.find(e=>e.kind==='task'&&e.text===task.title)?.date,key=date+':'+task.title,n=(matched.get(key)||0)+1;matched.set(key,n);add(n<=(ledgerCounts.get(key)||0)?'task-ledger:'+key+':'+n:'task:'+task.id,'task',date,task.completedAt);}
+ const duplicate=new Map();for(const e of state.ledger||[])if(e.kind==='task'){const key=e.date+':'+e.text,n=(duplicate.get(key)||0)+1;duplicate.set(key,n);add('task-ledger:'+key+':'+n,'task',e.date,null);}
+ for(const gift of state.masterGifts||[])add('gift:'+gift.id,'gift',gift.date,gift.createdAt||null);
+ for(const review of state.ownerReviews||[]){const series=({satisfied:'good',neutral:'neutral',angry:'bad'})[review.rating];if(series)add('review:'+(review.eventId||review.key||review.context+':'+review.date+':'+review.taskId),series,achievementDate(review.createdAt)||review.date,review.createdAt);}
+ const all=[...events.values()].map(e=>({...e,series:e.series.trim()})).sort((a,b)=>a.date.localeCompare(b.date)||(a.at||'').localeCompare(b.at||'')||a.key.localeCompare(b.key));
+ const totals=all.filter(e=>e.series==='total'),runs=[];let run=0,previous='';for(const e of totals){const gap=previous?(Date.parse(e.date+'T12:00:00Z')-Date.parse(previous+'T12:00:00Z'))/86400000:0;run=gap===1?run+1:1;runs.push({...e,count:run});previous=e.date;}
+ const elapsed=previous?(Date.parse(today+'T12:00:00Z')-Date.parse(previous+'T12:00:00Z'))/86400000:Infinity;
+ const progress={streak:elapsed<=1?run:0};for(const series of ['total','task','gift','good','neutral','bad'])progress[series]=all.filter(e=>e.series===series).length;
+ return {events:all,runs,progress};
+}
+export function refreshAchievements(state,now=new Date()){
+ const stats=achievementStats(state,now);state.achievements||={};state.achievementEvents=stats.events;
+ for(const a of ACHIEVEMENTS){if(state.achievements[a.id])continue;const hit=a.series==='streak'?stats.runs.find(e=>e.count>=a.threshold):stats.events.filter(e=>e.series===a.series)[a.threshold-1];if(hit)state.achievements[a.id]={date:hit.date,at:hit.at,observedAt:now.toISOString(),memoryId:null};}
+ return stats;
+}
+export function mergeAchievementHistory(state,previous){const incoming=state.achievements||{};state.achievements={...incoming};for(const [id,record]of Object.entries(previous?.achievements||{}))state.achievements[id]={...record,memoryId:incoming[id]?.memoryId||record.memoryId||null};const events=new Map((previous?.achievementEvents||[]).map(e=>[e.key,e]));for(const e of state.achievementEvents||[])if(!events.has(e.key)||!events.get(e.key).at)events.set(e.key,e);state.achievementEvents=[...events.values()];return state;}
+export function validateAchievements(state){
+ if(state.achievements!==undefined){if(!state.achievements||Array.isArray(state.achievements)||typeof state.achievements!=='object')throw Error('成就记录无效');for(const [id,r]of Object.entries(state.achievements)){if(!ACHIEVEMENTS.some(a=>a.id===id)||!r||!validDate(r.date)||!(r.at===null||typeof r.at==='string'&&Number.isFinite(Date.parse(r.at)))||typeof r.observedAt!=='string'||!Number.isFinite(Date.parse(r.observedAt))||!(r.memoryId===null||r.memoryId===undefined||validMediaId(r.memoryId)))throw Error('成就达成记录无效');}}
+ if(state.achievementEvents!==undefined){if(!Array.isArray(state.achievementEvents)||state.achievementEvents.length>50000)throw Error('成就事件记录无效');const keys=new Set();for(const e of state.achievementEvents){if(!e||typeof e.key!=='string'||e.key.length>1000||keys.has(e.key)||!['total','task','gift','good','neutral','bad'].includes(e.series)||!validDate(e.date)||!(e.at===null||typeof e.at==='string'&&Number.isFinite(Date.parse(e.at))))throw Error('成就事件内容无效');keys.add(e.key);}}
 }
