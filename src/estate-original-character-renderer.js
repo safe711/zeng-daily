@@ -1,8 +1,9 @@
+import {goodsIcon} from './estate-goods.js';
 import {ORIGINAL_CHARACTER_ASSETS as ASSETS} from './estate-character-originals.js';
 import {loadOriginalImage} from './estate-original-image-cache.js';
 import {ESTATE_CATALOG} from './model.js';
 import {isDisasterActor} from './estate-world.js';
-const images={},frameClips=new WeakMap();
+const images={},frameClips=new WeakMap(),collars=new Map();function collarImage(item){if(!collars.has(item.id)){const image=new Image();image.src=goodsIcon(item);collars.set(item.id,image);}const image=collars.get(item.id);return image.complete&&image.naturalWidth?image:null;}
 const owner=a=>a.role==='owner'||a.id==='ZENG_OWNER_001';
 const moving=clip=>['walk','run','stop'].includes(clip);
 export const characterReady=typeof Image==='undefined'?Promise.resolve():Promise.all(Object.entries(ASSETS).map(async([id,asset])=>{
@@ -10,25 +11,16 @@ export const characterReady=typeof Image==='undefined'?Promise.resolve():Promise
 }));
 // Select an authored original sequence. Never repaint, recolour or splice its character.
 export function characterSelection(a,clip,k=0){
- const male=a.gender==='male',g=male?'male':'female',photo=owner(a)&&!male&&a.avatar?.outfit==='model-outfit-01';
- if(clip==='bark')return{id:g+'-friendly-bark',index:k%2};
- if(isDisasterActor(a))return{id:g+'-prison',index:['bow','kneel','sniff'].includes(clip)?6+(clip==='kneel'?0:clip==='sniff'?3:k%5):clip==='crawl'?12+k%6:clip==='guard'?18+k%4:k%4};
- if(!owner(a)&&['bow','kneel','sniff','guard','crawl'].includes(clip)){
-  if(!male)return{id:'female-prison',index:clip==='crawl'?12+k%6:clip==='guard'?18+k%4:6+(clip==='kneel'?0:clip==='sniff'?3:k%5)};
-  return{id:clip==='crawl'?'male-prison':clip==='guard'?'male-guard':'male-bow',index:clip==='crawl'?12+k%6:clip==='guard'?k%4:clip==='kneel'?0:clip==='sniff'?3:k%5};
- }
- if(photo){
-  if(moving(clip))return{id:'owner-outfit-walk',index:k%8};
-  if(clip==='lie')return{id:'owner-supine',index:2+k%2};
-  return{id:'owner-normal',index:['sit','ride'].includes(clip)?4+k%2:clip==='win'?14+k%2:12+k%2};
- }
- // Other outfit originals were authored for the female model only: do not fake a male by tinting her hair.
- const outfit=ESTATE_CATALOG.find(v=>v.id===a.avatar?.outfit);
- if(!male&&outfit?.asset&&ASSETS[outfit.asset])return{id:outfit.asset,index:moving(clip)?k%8:['sit','ride'].includes(clip)?8+k%2:clip==='lie'?10+k%2:clip==='win'?14+k%2:12+k%2};
- if(moving(clip))return{id:male?'male-base-walk':a.avatar?.hair==='long'?'female-black-walk':'female-orange-walk',index:k%8};
- if(male)return{id:'male-normal',index:['sit','ride'].includes(clip)?k%2:clip==='lie'?2+k%2:clip==='win'?6+k%2:4+k%2};
- if(clip==='lie')return{id:'owner-supine',index:k%2};
- return{id:'owner-normal',index:['sit','ride'].includes(clip)?k%2:clip==='win'?10+k%2:8+k%2};
+ const look=ESTATE_CATALOG.find(i=>i.id===a.avatar?.outfit&&i.wholeAppearance),g=look?.gender||a.gender||(owner(a)?'female':'male'),male=g==='male';
+ const prison=!owner(a)||look?.id?.startsWith('appearance-prison-');
+ if(prison){if(clip==='bark')return{id:g+'-friendly-bark',index:k%2};const id=g+'-prison';return{id,index:['bow','kneel','sniff'].includes(clip)?6+(clip==='kneel'?0:clip==='sniff'?3:k%5):clip==='crawl'?12+k%6:clip==='guard'?18+k%4:moving(clip)?4+k%2:k%4};}
+ const normalClip=['sit','ride','lie','win'].includes(clip)?clip:'idle';
+ if(look?.id==='model-outfit-01'){if(moving(clip))return{id:'owner-outfit-walk',index:k%8};if(normalClip==='lie')return{id:'owner-supine',index:2+k%2};return{id:'owner-normal',index:['sit','ride'].includes(normalClip)?4+k%2:normalClip==='win'?14+k%2:12+k%2};}
+ if(look?.asset&&ASSETS[look.asset])return{id:look.asset,index:moving(clip)?k%8:['sit','ride'].includes(normalClip)?8+k%2:normalClip==='lie'?10+k%2:normalClip==='win'?14+k%2:12+k%2};
+ if(male){if(moving(clip))return{id:'male-base-walk',index:k%8};return{id:'male-normal',index:['sit','ride'].includes(normalClip)?k%2:normalClip==='lie'?2+k%2:normalClip==='win'?6+k%2:4+k%2};}
+ if(look?.id==='appearance-female-orange'){if(moving(clip))return{id:'female-orange-walk',index:k%8};if(normalClip==='lie')return{id:'owner-supine',index:k%2};return{id:'owner-normal',index:['sit','ride'].includes(normalClip)?k%2:normalClip==='win'?10+k%2:8+k%2};}
+ if(moving(clip))return{id:'female-black-walk',index:k%8};
+ return{id:'female-black-normal',index:['sit','ride'].includes(normalClip)?2+k%2:normalClip==='lie'?4+k%2:normalClip==='win'?6+k%2:k%2};
 }
 export function characterFrame(a,clip='idle',k=0){
  const selected=characterSelection(a,clip,k),asset=ASSETS[selected.id],image=images[selected.id];
@@ -44,6 +36,7 @@ export function drawCharacterFrame(c,a,clip='idle',k=0,{x=a.x,y=a.y,scale=1,flip
  if(frame.sourceClip){let path=frameClips.get(frame);if(!path){path=new Path2D();for(const [px,py,pw,ph]of frame.sourceClip)path.rect(px*frame.scale+dx-33,py*frame.scale+dy-56,pw*frame.scale,ph*frame.scale);frameClips.set(frame,path);}c.clip(path);}
  // Sample the original PNG directly into the final scene. No small atlas or intermediate bitmap.
  c.drawImage(image,sx,sy,w,h,sx*frame.scale+dx-33,sy*frame.scale+dy-56,w*frame.scale,h*frame.scale);
+ if(!owner(a)&&a.avatar?.collar&&a.avatar.collar!=='black-collar'&&frame.collarVisible!==false){const item=ESTATE_CATALOG.find(i=>i.id===a.avatar.collar&&i.kind==='collar'),image=item&&collarImage(item),p=frame.neck;if(image&&p)c.drawImage(image,12,32,104,76,p.x-33-4,p.y-56-2,8,5);}
  c.restore();return true;
 }
 export function characterAnchor(a,clip,k,point='neck'){
@@ -52,3 +45,5 @@ export function characterAnchor(a,clip,k,point='neck'){
 }
 // Compatibility metadata, never a program-painted body.
 export const rasterDollFrame=characterFrame;
+
+const appearanceThumbnails=new Map();export function appearanceThumbnail(item){if(!item?.wholeAppearance)return null;if(appearanceThumbnails.has(item.id))return appearanceThumbnails.get(item.id);const f=characterFrame({role:item.role==='slave'?'slave':'owner',gender:item.gender,avatar:{outfit:item.id}},'idle',0);if(!f)return null;const cv=document.createElement('canvas');cv.width=cv.height=160;const c=cv.getContext('2d'),[x,y,w,h]=f.frame.sourceBounds,scale=144/Math.max(w,h);c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';c.drawImage(f.image,x,y,w,h,(160-w*scale)/2,(160-h*scale)/2,w*scale,h*scale);const result=cv.toDataURL();appearanceThumbnails.set(item.id,result);return result;}
