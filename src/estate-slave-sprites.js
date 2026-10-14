@@ -1,5 +1,6 @@
 import {drawCharacterFrame,paperDollReady,dollRig,dollWorldPoint,characterAnchor} from './estate-paperdoll.js';
 import {isDisasterActor} from './estate-world.js';
+import {characterFrame} from './estate-original-character-renderer.js';
 export const SLAVE_ANIMATIONS={idle:[0,8,120],run:[1,8,90],stop:[2,4,120],walk:[3,8,90],win:[4,2,120]};
 export const slaveSpritesReady=paperDollReady;
 export const BOW_KNEE_ANCHOR={x:33,y:55};
@@ -8,5 +9,17 @@ export function slaveDollPose(actor,t){if(['sniff-kneel','sniff-prone'].includes
 function origin(actor){const prone=actor.pose==='sniff-prone'&&actor.sniffTarget;return {x:prone?actor.sniffTarget.x-27*actor.direction:actor.x,y:prone?actor.sniffTarget.y:actor.y,flip:actor.direction===-1?-1:1};}
 export function drawSlaveSprite(c,actor,t,scale=1){if(actor.role==='owner'||actor.id==='ZENG_OWNER_001')return false;const {clip,frame}=slaveDollPose(actor,t),o=origin(actor);return drawCharacterFrame(c,{...actor,gender:actor.gender||'male'},clip,frame,{x:Math.round(o.x),y:Math.round(o.y),flip:o.flip,scale});}
 export function slaveNeckPoint(actor,t,scale=1){const clock=actor.greeting&&['prostrate','bark'].includes(actor.pose)?Math.max(0,t-actor.greeting.at):t;const {clip,frame}=slaveDollPose(actor,clock);return dollWorldPoint(actor,characterAnchor(actor,clip,frame,'neck'),{...origin(actor),scale});}
-export function drawGuardAlert(c,actor,t,scale=1){if(actor.pose!=='guard')return;const {clip,frame}=slaveDollPose(actor,t),head=dollWorldPoint(actor,characterAnchor(actor,clip,frame,'head'),{...origin(actor),scale}),x=head.x,y=head.y-24,pulse=(Math.sin(t/300)+1)/2;c.save();for(const angle of [-.9,-.45,0,.45,.9]){const dx=Math.sin(angle),dy=-Math.cos(angle),near=8+pulse*2,far=near+6+pulse*3;c.beginPath();c.moveTo(Math.round(x+dx*near),Math.round(y+dy*near));c.lineTo(Math.round(x+dx*far),Math.round(y+dy*far));c.strokeStyle='#483621';c.lineWidth=4;c.stroke();c.strokeStyle=pulse>.5?'#ffdf86':'#d7b766';c.lineWidth=2;c.stroke();}c.restore();}
+export function drawGuardAlert(c,actor,t,scale=1){
+ if(actor.pose!=='guard'&&actor.interaction?.kind!=='guard')return;
+ const clock=actor.greeting&&['prostrate','bark'].includes(actor.pose)?Math.max(0,t-actor.greeting.at):t;
+ const {clip,frame}=slaveDollPose(actor,clock),source=characterFrame(actor,clip,frame)?.frame,anchor=characterAnchor(actor,clip,frame,'head');
+ const top=source?{x:anchor.x,y:source.sourceBounds[1]*source.scale+source.offset[1]}:anchor;
+ const head=dollWorldPoint(actor,top,{...origin(actor),scale}),pulse=(Math.sin(t/300)+1)/2;
+ c.save();c.translate(head.x,head.y-12*scale);c.scale(scale,scale);
+ c.shadowColor='#ffdc78';c.shadowBlur=7+pulse*4;c.fillStyle='#ffe49c';c.strokeStyle='#483621';c.lineWidth=1.5;
+ c.beginPath();c.moveTo(-10,0);c.quadraticCurveTo(0,-10,10,0);c.quadraticCurveTo(0,10,-10,0);c.closePath();c.fill();c.stroke();
+ c.shadowBlur=0;c.fillStyle='#483621';c.beginPath();c.ellipse(0,0,2.7,3.8,0,0,Math.PI*2);c.fill();
+ for(const angle of [-.9,-.45,0,.45,.9]){const dx=Math.sin(angle),dy=-Math.cos(angle),near=10+pulse,far=near+5+pulse*2;c.beginPath();c.moveTo(dx*near,dy*near);c.lineTo(dx*far,dy*far);c.strokeStyle='#483621';c.lineWidth=4;c.stroke();c.strokeStyle='#ffdf86';c.lineWidth=2;c.stroke();}
+ c.restore();
+}
 export function drawSniffEffect(c,a,t){if(!a.sniffTarget||!['sniff-prone','sniff-kneel'].includes(a.pose))return;const p=a.sniffTarget,k=(t%900)/900;c.save();c.strokeStyle='#ecddba';c.lineWidth=1.5;for(let n=0;n<2;n++){c.beginPath();const x=p.x-2+n*5,y=p.y-8-k*8;c.moveTo(x,y+4);c.lineTo(x+2,y+2);c.lineTo(x,y);c.stroke();}c.restore();}
