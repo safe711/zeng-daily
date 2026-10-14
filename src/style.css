@@ -331,3 +331,14 @@ button[data-action="update"].has-new-update{position:relative}button[data-action
 .slot-toy{grid-column:2;grid-row:5;justify-self:center;width:66px}.estate-pair-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.estate-pair-actions button{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;padding:10px 5px}.estate-pair-actions img{width:42px;height:42px;image-rendering:pixelated}.estate-pair-actions span{font-size:12px}@media(max-width:600px){.slot-toy{width:38px}}
 
 .estate-owned-goods button{border:2px solid var(--quality);border-radius:8px}
+
+/* Global floating notices stay above the content, clear of ritual actions. */
+#message,.operation-progress{position:fixed;top:calc(12px + var(--app-safe-top,env(safe-area-inset-top,0px)));bottom:auto;left:50%;transform:translateX(-50%);width:min(420px,calc(100vw - 28px));max-height:calc(50vh - 24px);margin:0;padding:14px 18px;border:1px solid #b69a6080;border-radius:14px;background:#242731f5;color:#f0e4cc;box-shadow:0 8px 28px #0006;text-align:center;line-height:1.6;overflow:auto;z-index:2147483000}
+#message{pointer-events:none}
+#message:empty{display:none}
+#message.message-update{padding:14px 18px;border:1px solid #b69a6080;border-radius:14px;background:#242731f5;box-shadow:0 8px 28px #0006}
+.operation-progress{pointer-events:none}
+.operation-progress button{pointer-events:auto}
+
+/* Six equipment positions around the model preview. */
+.doll-slots{grid-template-rows:repeat(3,76px);gap:18px 3px;padding-top:8px}.doll-slots .slot-head{grid-area:1/1}.doll-slots .slot-glasses{grid-area:1/3}.doll-slots .slot-hair{grid-area:2/1}.doll-slots .slot-outfit{grid-area:2/3}.doll-slots .slot-socks{grid-area:3/1}.doll-slots .slot-shoes{grid-area:3/3}

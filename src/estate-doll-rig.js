@@ -1,6 +1,6 @@
 // Authored pixel rig: body and equipment share these exact joints in every frame.
 export const DOLL_ACTIONS={idle:8,walk:8,run:10,stop:4,win:14,sit:2,lie:2,ride:2,kneel:1,bow:5,crawl:6,bark:2,guard:4,sniff:2};
-export const DOLL_SLOT_BONES={head:['head'],glasses:['head'],neck:['neck'],collar:['neck'],top:['torso','armFar','forearmFar','armNear','forearmNear'],bottom:['pelvis','thighFar','calfFar','thighNear','calfNear'],shoes:['footFar','footNear'],socks:['footFar','footNear'],back:['torso'],hand:['handNear'],toy:['handNear']};
+export const DOLL_SLOT_BONES={head:['head'],glasses:['head'],hair:['head'],outfit:['neck','torso','armFar','forearmFar','armNear','forearmNear','pelvis','thighFar','calfFar','thighNear','calfNear'],collar:['neck'],shoes:['footFar','footNear'],socks:['footFar','footNear'],toy:['handNear']};
 const hipsForStanding=h=>[{x:h.x-3},{x:h.x+3}];
 const p=(x,y)=>({x,y}),add=(a,x,y)=>p(a.x+x,a.y+y);
 function knee(a,b,l1=9,l2=9,side=1){const dx=b.x-a.x,dy=b.y-a.y,d=Math.min(l1+l2-.1,Math.max(.1,Math.hypot(dx,dy))),along=(l1*l1-l2*l2+d*d)/(2*d),height=Math.sqrt(Math.max(0,l1*l1-along*along)),unit=Math.hypot(dx,dy)||1;return p(a.x+dx/unit*along+side*dy/unit*height,a.y+dy/unit*along-side*dx/unit*height);}
