@@ -1,6 +1,6 @@
 // A softly bowed chain with evenly spaced, alternating iron links.
 export function drawDisasterChain(c,actor,neck,time){
- const side=actor.x<320?-1:1,start={x:actor.x,y:5},bend=34+Math.sin(time/1900+(side>0?1.2:0))*3,control={x:(start.x+neck.x)/2+side*bend,y:neck.y*.53};
+ const side=actor.x<320?-1:1,start=actor.chainAnchor||{x:actor.x,y:5},bend=34+Math.sin(time/1900+(side>0?1.2:0))*3,control={x:(start.x+neck.x)/2+side*bend,y:neck.y*.53};
  const point=t=>({x:(1-t)*(1-t)*start.x+2*(1-t)*t*control.x+t*t*neck.x,y:(1-t)*(1-t)*start.y+2*(1-t)*t*control.y+t*t*neck.y});
  const samples=[{...start,length:0}];let length=0;for(let i=1;i<=64;i++){const p=point(i/64),previous=samples.at(-1);length+=Math.hypot(p.x-previous.x,p.y-previous.y);samples.push({...p,length});}
  c.save();c.lineJoin='miter';c.fillStyle='#34373b';c.fillRect(start.x-6,0,12,5);c.fillStyle='#85877c';c.fillRect(start.x-4,1,8,1);c.fillStyle='#c0b79f';c.fillRect(start.x-4,2,1,1);c.fillRect(start.x+3,2,1,1);

@@ -1,20 +1,21 @@
+import {EXPANSION_ORIGINAL_ASSETS} from './estate-expansion-originals.js';
 import {goodsIcon} from './estate-goods.js';
 import {ORIGINAL_CHARACTER_ASSETS as BASE_ASSETS} from './estate-character-originals.js';
 import {RIDING_ORIGINAL_ASSETS} from './estate-riding-originals.js';
 import {loadOriginalImage} from './estate-original-image-cache.js';
 import {ESTATE_CATALOG} from './model.js';
 import {isDisasterActor} from './estate-world.js';
-const ASSETS={...BASE_ASSETS,...RIDING_ORIGINAL_ASSETS};
+const ASSETS={...BASE_ASSETS,...RIDING_ORIGINAL_ASSETS,...EXPANSION_ORIGINAL_ASSETS};
 const images={},frameClips=new WeakMap(),collars=new Map();function collarImage(item){if(!collars.has(item.id)){const image=new Image();image.src=goodsIcon(item);collars.set(item.id,image);}const image=collars.get(item.id);return image.complete&&image.naturalWidth?image:null;}
 const owner=a=>a.role==='owner'||a.id==='ZENG_OWNER_001';
 const moving=clip=>['walk','run','stop'].includes(clip);
-export const characterReady=typeof Image==='undefined'?Promise.resolve():Promise.all([...ESTATE_CATALOG.filter(i=>i.kind==='collar').map(item=>new Promise(resolve=>{const image=new Image();image.onload=resolve;image.onerror=resolve;image.src=goodsIcon(item);collars.set(item.id,image);})),...Object.entries(ASSETS).map(async([id,asset])=>{
- images[id]=await loadOriginalImage(new URL('../'+asset.file.replace(/^\.\//,''),import.meta.url).href+'?original='+asset.hash);
-})]);
+const loadedJobs=new Map();function loadAsset(id){if(loadedJobs.has(id))return loadedJobs.get(id);const asset=ASSETS[id],job=loadOriginalImage(new URL('../'+asset.file.replace(/^\.\//,''),import.meta.url).href+'?original='+asset.hash).then(im=>{images[id]=im;return im;});loadedJobs.set(id,job);job.catch(()=>loadedJobs.delete(id));return job;}
+async function loadCharacters(){const entries=Object.keys(ASSETS).filter(id=>!/^model-hat-/.test(id)&&!['male-bow','female-bow','male-guard','female-guard','male-bark','female-bark','model-outfit-01'].includes(id));let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<entries.length){const id=entries[cursor++];await loadAsset(id).catch(error=>{throw Error('角色原图载入失败 '+id+'：'+error.message);});}}));await Promise.all(ESTATE_CATALOG.filter(i=>i.kind==='collar').map(item=>new Promise(resolve=>{const im=new Image();im.onload=resolve;im.onerror=resolve;im.src=goodsIcon(item);collars.set(item.id,im);})))}
+export const characterReady=typeof Image==='undefined'?Promise.resolve():loadCharacters();
 // Select an authored original sequence. Never repaint, recolour or splice its character.
 export function characterSelection(a,clip,k=0){
  const look=ESTATE_CATALOG.find(i=>i.id===a.avatar?.outfit&&i.wholeAppearance),g=look?.gender||a.gender||(owner(a)?'female':'male'),male=g==='male';
- const prison=!owner(a)||look?.id?.startsWith('appearance-prison-');
+ const prison=!owner(a)||look?.id?.startsWith('appearance-prison-');if(clip==='recline'&&look?.id?.startsWith('model-outfit-')&&look.id!=='model-outfit-01')return{id:look.id+'-recline',index:k%2};if(clip==='recline'){const id=look?.id==='model-outfit-01'?'owner-lounge-recline':male?'male-lounge-recline':look?.id==='appearance-female-orange'?'female-orange-lounge-recline':'female-black-lounge-recline';return{id,index:k%4};}if(clip==='massage'&&male)return{id:'male-kneeling-offer',index:[0,3,0,3][k%4]};if(clip==='massage')return{id:a.scene==='lounge'?g+'-shoeless':g+'-prison',index:[6,11,6,11][k%4]};if(a.scene==='lounge'){if(prison){if(clip==='carry'){const frame=k%4;return{id:g==='female'?'female-carry-shoeless':frame===0?'male-carry-first-shoeless':'male-carry-master-shoeless',index:frame};}if(clip==='bark')return{id:g+'-shoeless',index:23};return{id:g+'-shoeless',index:['bow','kneel','sniff'].includes(clip)?6+(clip==='kneel'?0:clip==='sniff'?3:k%5):clip==='crawl'?12+k%6:clip==='guard'?18+k%4:moving(clip)?12+k%6:6};}if(look?.id==='model-outfit-01'){if(clip==='ride')return{id:'owner-riding-shoeless',index:k%4};if(moving(clip))return{id:'owner-shoeless-walk',index:k%8};return{id:'owner-normal-shoeless',index:['sit'].includes(clip)?4+k%2:clip==='lie'?6+k%2:clip==='win'?14+k%2:12+k%2};}}
  if(prison){if(clip==='carry'){const frame=k%4;if(g==='female'&&ASSETS['female-carry'])return{id:'female-carry',index:frame};if(g==='male')return{id:frame===0?'male-carry-first':'male-carry-master',index:frame===0?0:frame};return{id:g+'-prison',index:12+frame};}if(clip==='bark')return{id:g+'-friendly-bark',index:k%2};const id=g+'-prison';return{id,index:['bow','kneel','sniff'].includes(clip)?6+(clip==='kneel'?0:clip==='sniff'?3:k%5):clip==='crawl'?12+k%6:clip==='guard'?18+k%4:moving(clip)?12+k%6:6};}
  const normalClip=['sit','ride','lie','win'].includes(clip)?clip:'idle';
  if(look?.id==='model-outfit-01'){if(clip==='ride')return{id:'owner-riding',index:k%4};if(moving(clip))return{id:'owner-outfit-walk',index:k%8};if(normalClip==='lie')return{id:'owner-supine',index:2+k%2};return{id:'owner-normal',index:['sit','ride'].includes(normalClip)?4+k%2:normalClip==='win'?14+k%2:12+k%2};}
@@ -26,14 +27,14 @@ export function characterSelection(a,clip,k=0){
 }
 export function characterFrame(a,clip='idle',k=0){
  const selected=characterSelection(a,clip,k),asset=ASSETS[selected.id],image=images[selected.id];
- if(!asset||!image)return null;
+ if(!asset)return null;if(!image){loadAsset(selected.id).catch(()=>{});return null;}
  const index=((selected.index%asset.frames.length)+asset.frames.length)%asset.frames.length;
  return{image,asset:selected.id,index,frame:asset.frames[index]};
 }
-export function drawCharacterFrame(c,a,clip='idle',k=0,{x=a.x,y=a.y,scale=1,flip=a.direction===-1?-1:1}={}){
+export function drawCharacterFrame(c,a,clip='idle',k=0,{x=a.x,y=a.y,scale=1,flip=a.direction===-1?-1:1,rotation=0}={}){
  const selected=characterFrame(a,clip,k);if(!selected)return false;
  const {image,frame}=selected,[sx,sy,w,h]=frame.sourceBounds,[dx,dy]=frame.offset,s=1.35*scale;
- c.save();c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';c.translate(x,y);c.scale(flip*s,s);
+ c.save();c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';c.translate(x,y);c.rotate(rotation);c.scale(flip*s,s);
  // Some atlas figures overlap their neighbour's rectangular cell. Clip only the selected original figure.
  if(frame.sourceClip){let path=frameClips.get(frame);if(!path){path=new Path2D();for(const [px,py,pw,ph]of frame.sourceClip)path.rect(px*frame.scale+dx-33,py*frame.scale+dy-56,pw*frame.scale,ph*frame.scale);frameClips.set(frame,path);}c.clip(path);}
  // Sample the original PNG directly into the final scene. No small atlas or intermediate bitmap.

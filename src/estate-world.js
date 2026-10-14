@@ -1,4 +1,4 @@
-export const ESTATE_MAP_ORDER=['courtyard','bedroom','shrine'];
+export const ESTATE_MAP_ORDER=['courtyard','bedroom','shrine','lounge'];
 export const isDisasterActor=p=>p?.type==='挡灾奴'||/^ZENG-DZ-/.test(p?.id||'');
 export const estateHome=p=>isDisasterActor(p)?'shrine':'courtyard';
 export function estatePosition(p){if(isDisasterActor(p))return {scene:'shrine',x:p.number==='02'||p.id==='ZENG-DZ-002'?490:165,y:305,direction:p.number==='02'||p.id==='ZENG-DZ-002'?-1:1,at:0};return {scene:'courtyard',x:p.role==='owner'?330:p.id==='ZENG-DS-003'?490:150,y:305,direction:1,at:0};}

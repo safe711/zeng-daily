@@ -1,3 +1,4 @@
+import {estateSceneRoute} from './estate-lounge.js';
 // Persisted motions shared by the browser and account server. Distances are
 // world pixels; both peers advance the same pickup/lead/return itinerary.
 export const LEASH_DISTANCE=104;
@@ -16,8 +17,8 @@ export function makeLeadMotion(id,ownerId,targetId,leader,dog,destination,kind,s
  return {id,ownerId,targetId,kind,site,scene:dog.scene,startedAt,stages};
 }
 export function makeReturnMotion(id,targetId,dog,startedAt){
- let current=point(dog);const stages=[];const order=['courtyard','bedroom','shrine'];
- while(current.scene!=='courtyard'){const edge={...current,x:-30,direction:-1};stages.push({duration:duration(current,edge,.045),dogFrom:current,dogTo:edge,phase:'return'});current={scene:order[order.indexOf(current.scene)-1],x:670,y:305,direction:-1};}
+ let current=point(dog);const stages=[];const order=estateSceneRoute(current.scene,'courtyard');
+ while(current.scene!=='courtyard'){const edge={...current,x:-30,direction:-1};stages.push({duration:duration(current,edge,.045),dogFrom:current,dogTo:edge,phase:'return'});current={scene:order[order.indexOf(current.scene)+1],x:670,y:305,direction:-1};}
  const home={scene:'courtyard',x:targetId==='ZENG-DS-003'?490:445,y:305,direction:1};stages.push({duration:duration(current,home,.045),dogFrom:current,dogTo:home,phase:'return'});
  return {id,targetId,kind:'return',site:'kennel',scene:dog.scene,startedAt,stages};
 }
