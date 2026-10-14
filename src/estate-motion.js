@@ -40,13 +40,14 @@ export function makeRideMotion(id,ownerId,targetId,leader,dog,startedAt){const d
 export const BED_FOOTWEAR_POINT={x:450,y:309};
 export function estateShoeTarget(leader,site=null){const shoe=site==='bed'&&leader.scene==='bedroom'?{...BED_FOOTWEAR_POINT}:site==='desk'?{x:leader.x-24,y:leader.y-OWNER_CHAIR_RISE}:{x:leader.x,y:leader.y};return {shoe:{...shoe,scene:leader.scene,itemId:leader.avatar?.shoes||null},dog:{scene:leader.scene,x:shoe.x-27,y:shoe.y,direction:1}};}
 
-// Follow the owner's walked path, with one full character of clear space.
+// A slack leash leaves the dog where it is, including when the owner turns.
 export function leashTrailPoint(trail,leader,dog){
- if(!trail.length||trail.at(-1).scene!==leader.scene){trail.length=0;trail.push({...point(leader),x:leader.x-leader.direction*LEASH_DISTANCE});trail.push(point(leader));}
- const last=trail.at(-1);if(Math.hypot(leader.x-last.x,leader.y-last.y)>.1)trail.push(point(leader));
- let remaining=LEASH_DISTANCE;
- for(let i=trail.length-1;i>0;i--){const a=trail[i-1],b=trail[i],length=Math.hypot(b.x-a.x,b.y-a.y);if(length>=remaining&&length>0){const k=remaining/length;const result={scene:leader.scene,x:b.x+(a.x-b.x)*k,y:b.y+(a.y-b.y)*k,direction:Math.abs(b.x-a.x)>.1?(b.x>a.x?1:-1):b.direction};if(i>1)trail.splice(0,i-1);return result;}remaining-=length;}
- const first=trail[0];return {...first,x:first.x-first.direction*remaining};
+ trail.length=0;
+ if(dog.scene!==leader.scene)return {...point(leader),x:leader.x-leader.direction*LEASH_DISTANCE};
+ const dx=leader.x-dog.x,dy=leader.y-dog.y,distance=Math.hypot(dx,dy);
+ if(distance<=LEASH_DISTANCE)return point(dog);
+ const step=(distance-LEASH_DISTANCE)/distance;
+ return {scene:dog.scene,x:dog.x+dx*step,y:dog.y+dy*step,direction:Math.abs(dx)>.1?(dx>0?1:-1):dog.direction||1};
 }
 
 export function makeFetchMotion(id,ownerId,targetId,leader,dog,ballItemId,startedAt){const direction=dog.x<=320?1:-1,near={...point(dog),x:Math.max(40,Math.min(600,dog.x-direction*28)),direction},waiting={...point(dog),direction},hand={scene:dog.scene,x:near.x+direction*14,y:near.y-32},landing={scene:dog.scene,x:Math.max(50,Math.min(590,dog.x+direction*190)),y:305},carryEnd={...waiting,x:near.x+direction*24,y:near.y,direction:-direction};return {id,ownerId,targetId,kind:'fetch',ballItemId,scene:dog.scene,startedAt,stages:[{duration:duration(leader,near),ownerFrom:point(leader),ownerTo:near,dogFrom:point(dog),dogTo:waiting,phase:'pickup'},{duration:450,ownerFrom:near,ownerTo:near,dogFrom:waiting,dogTo:waiting,ballFrom:hand,ballTo:hand,phase:'throw'},{duration:700,ownerFrom:near,ownerTo:near,dogFrom:waiting,dogTo:waiting,ballFrom:hand,ballTo:landing,ballArc:55,phase:'flight'},{duration:duration(waiting,{...landing,direction},.12),ownerFrom:near,ownerTo:near,dogFrom:waiting,dogTo:{...landing,direction},ballFrom:landing,ballTo:landing,phase:'chase'},{duration:350,ownerFrom:near,ownerTo:near,dogFrom:{...landing,direction},dogTo:{...landing,direction:-direction},ballFrom:landing,ballTo:landing,phase:'collect'},{duration:duration(landing,carryEnd,.12),ownerFrom:near,ownerTo:near,dogFrom:{...landing,direction:-direction},dogTo:carryEnd,ballCarry:true,phase:'retrieve'},{duration:750,ownerFrom:near,ownerTo:near,dogFrom:carryEnd,dogTo:carryEnd,ballFrom:{scene:dog.scene,x:carryEnd.x-direction*12,y:carryEnd.y-30},ballTo:hand,phase:'handover'}]};}
