@@ -8,12 +8,16 @@ export const PERIOD_NAMES={morning:'早上',noon:'中午',dusk:'傍晚',night:'�
 const monthClock=new Intl.DateTimeFormat('en',{timeZone:'Asia/Hong_Kong',month:'numeric'}),hourClock=new Intl.DateTimeFormat('en',{timeZone:'Asia/Hong_Kong',hour:'numeric',hourCycle:'h23'});
 export function estateSeason(now=Date.now()){const month=Number(monthClock.format(now));return month>=3&&month<=5?'spring':month>=6&&month<=8?'summer':month>=9&&month<=11?'autumn':'winter';}
 export function estatePeriod(now=Date.now()){const hour=Number(hourClock.format(now));return hour>=5&&hour<11?'morning':hour>=11&&hour<16?'noon':hour>=16&&hour<20?'dusk':'night';}
-const images=new Map(),loading=new Set(),retryAfter=new Map();
-function requestPainting(id){if(images.has(id)||loading.has(id)||Date.now()<(retryAfter.get(id)||0))return;const asset=SCENE_ORIGINAL_ASSETS[id];if(!asset)return;loading.add(id);loadOriginalImage(new URL('../'+asset.file,import.meta.url).href+'?original='+asset.hash).then(im=>images.set(id,im)).catch(()=>retryAfter.set(id,Date.now()+30000)).finally(()=>loading.delete(id));}
+const images=new Map(),loading=new Map(),retryAfter=new Map(),lastReady=new Map();
+const MAX_SCENE_PAINTINGS=8;
+function trimPaintings(){const keep=new Set(lastReady.values());for(const id of images.keys()){if(images.size<=MAX_SCENE_PAINTINGS)break;if(!keep.has(id))images.delete(id);}}
+function painting(id){const image=images.get(id);if(image){images.delete(id);images.set(id,image);}return image;}
+function requestPainting(id){if(images.has(id)||loading.has(id)||Date.now()<(retryAfter.get(id)||0))return loading.get(id);const asset=SCENE_ORIGINAL_ASSETS[id];if(!asset)return;const job=loadOriginalImage(new URL('../'+asset.file,import.meta.url).href+'?original='+asset.hash).then(im=>{images.set(id,im);retryAfter.delete(id);trimPaintings();}).catch(()=>retryAfter.set(id,Date.now()+2000)).finally(()=>loading.delete(id));loading.set(id,job);return job;}
 export function environmentId(season,weather,period){return `courtyard-${season}-${weather}-${period}`;}
-export function drawEstateExterior(c,scene,{season,weather,period}){if(scene!=='courtyard'){const indoorId=`${scene}-${weather==='sunny'?'clear':'overcast'}-${period}`;requestPainting(indoorId);const indoor=images.get(indoorId);if(indoor)c.drawImage(indoor,0,0,640,360);}
- const id=environmentId(season,weather,period);requestPainting(id);const image=images.get(id);if(!image)return false;
- if(scene==='courtyard'){c.save();c.imageSmoothingEnabled=true;c.drawImage(image,0,0,640,360);c.restore();}else drawEstateWindowView(c,scene,image);return true;}
+function roomId(scene,{season,weather,period}){return scene==='courtyard'?environmentId(season,weather,period):`${scene}-${weather==='sunny'?'clear':'overcast'}-${period}`;}
+export function prepareEstateBackground(scene,env){requestPainting(roomId(scene,env));if(scene!=='courtyard')requestPainting(environmentId(env.season,env.weather,env.period));}
+export function estateBackgroundStatus(scene,env){const id=roomId(scene,env);return{id,ready:images.has(id),previous:lastReady.get(scene)||null,loading:loading.has(id),retryAt:retryAfter.get(id)||0,decoded:images.size,limit:MAX_SCENE_PAINTINGS};}
+export function drawEstateExterior(c,scene,env){const id=roomId(scene,env);prepareEstateBackground(scene,env);let image=painting(id);if(image)lastReady.set(scene,id);else image=painting(lastReady.get(scene));if(image){c.save();c.imageSmoothingEnabled=true;c.drawImage(image,0,0,640,360);c.restore();}if(scene==='courtyard')return !!image;const outdoor=painting(environmentId(env.season,env.weather,env.period));if(outdoor)drawEstateWindowView(c,scene,outdoor);return !!outdoor;}
 export function drawEstateWindowView(c,scene,image){c.save();c.imageSmoothingEnabled=true;c.beginPath();for(const poly of WEATHER_WINDOWS[scene]||[]){c.moveTo(...poly[0]);for(const point of poly.slice(1))c.lineTo(...point);c.closePath();}c.clip();
  // Show distant sky, trees and rooftops through each window, keeping indoor frames intact.
  const views=['bedroom','lounge'].includes(scene)?[[271,68,76,125],[585,76,43,111]]:[[621,96,19,76]];
