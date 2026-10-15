@@ -22,15 +22,15 @@ function disasterAudiencePosition(actor,now=Date.now(),manual=null){
 
 const LOUNGE_CHAIRS=[[321,276,410,213],[370,293,470,220],[426,310,532,229],[490,326,589,237]].map(([x,y,hx,hy],index)=>({id:'recliner-'+(index+1),name:'躺椅'+(index+1),x,y,head:{x:hx,y:hy},foot:{x,y}}));
 const loungeChair=id=>LOUNGE_CHAIRS.find(chair=>chair.id===id)||null;
-const estateScenesAdjacent=(from,to)=>({courtyard:['bedroom'],bedroom:['courtyard','shrine','lounge'],shrine:['bedroom'],lounge:['bedroom']}[from]||[]).includes(to);
+const estateScenesAdjacent=(from,to)=>({courtyard:['bedroom'],bedroom:['courtyard','shrine','lounge'],shrine:['bedroom'],lounge:['bedroom','gallery'],gallery:['lounge']}[from]||[]).includes(to);
 function loungeMassageTarget(chair){return{scene:'lounge',x:chair.foot.x-29,y:chair.foot.y-9,direction:1};}
 const estateRestPose=site=>loungeChair(site)?'lounge-recline':site==='bed'?'lie':'sit';
-function estateSceneRoute(from,to){const queue=[[from]],seen=new Set([from]);while(queue.length){const route=queue.shift(),last=route.at(-1);if(last===to)return route;for(const next of {courtyard:['bedroom'],bedroom:['courtyard','shrine','lounge'],shrine:['bedroom'],lounge:['bedroom']}[last]||[])if(!seen.has(next)){seen.add(next);queue.push([...route,next]);}}throw Error('Unknown scene route');}
+function estateSceneRoute(from,to){const queue=[[from]],seen=new Set([from]);while(queue.length){const route=queue.shift(),last=route.at(-1);if(last===to)return route;for(const next of {courtyard:['bedroom'],bedroom:['courtyard','shrine','lounge'],shrine:['bedroom'],lounge:['bedroom','gallery'],gallery:['lounge']}[last]||[])if(!seen.has(next)){seen.add(next);queue.push([...route,next]);}}throw Error('Unknown scene route');}
 function makeLoungeMassageMotion(id,ownerId,targetId,dog,chair,startedAt,readyDelay=0){const stages=[],route=estateSceneRoute(dog.scene,'lounge');let current={...dog};const stage=(to,duration)=>{stages.push({duration:duration??Math.max(1,Math.hypot(to.x-current.x,to.y-current.y)/.07),dogFrom:{...current},dogTo:{...to},phase:'massage-approach'});current={...to};};if(readyDelay>0)stages.push({duration:readyDelay,dogFrom:{...current},dogTo:{...current},phase:'waiting-owner'});for(const next of route.slice(1)){const direction=current.scene==='courtyard'?1:-1;stage({...current,x:direction>0?670:40,y:305,direction});current={scene:next,x:next==='lounge'?40:next==='courtyard'?670:40,y:305,direction:1};stage(current,650);}stage(loungeMassageTarget(chair));return{id,ownerId,targetId,kind:'massage',ownerDetached:true,site:chair.id,scene:'lounge',startedAt,stages};}
 
-const GUARD_POSTS={courtyard:[{x:74,y:292},{x:184,y:292}],bedroom:[{x:70,y:296},{x:180,y:296}],shrine:[{x:71,y:297},{x:271,y:297}],lounge:[{x:50,y:300},{x:160,y:300}]};
+const GUARD_POSTS={courtyard:[{x:74,y:292},{x:184,y:292}],bedroom:[{x:70,y:296},{x:180,y:296}],shrine:[{x:71,y:297},{x:271,y:297}],lounge:[{x:50,y:300},{x:160,y:300}],gallery:[{x:50,y:300},{x:160,y:300}]};
 // World policy embedded from the shared frontend module at release time.
-const ESTATE_MAP_ORDER=['courtyard','bedroom','shrine','lounge'];
+const ESTATE_MAP_ORDER=['courtyard','bedroom','shrine','lounge','gallery'];
 const isDisasterActor=p=>p?.type==='挡灾奴'||/^ZENG-DZ-/.test(p?.id||'');
 const estateHome=p=>isDisasterActor(p)?'shrine':'courtyard';
 function estatePosition(p){if(isDisasterActor(p))return {scene:'shrine',x:p.number==='02'||p.id==='ZENG-DZ-002'?490:165,y:305,direction:p.number==='02'||p.id==='ZENG-DZ-002'?-1:1,at:0};return {scene:'courtyard',x:p.role==='owner'?330:p.id==='ZENG-DS-003'?490:150,y:305,direction:1,at:0};}
@@ -176,7 +176,41 @@ function makeFetchMotion(id,ownerId,targetId,leader,dog,ballItemId,startedAt){co
 
  let estateQueue=Promise.resolve();
  async function handle(action,...args){if(action.startsWith('control/estate')){const job=estateQueue.then(()=>handleUnlocked(action,...args));estateQueue=job.catch(()=>{});return job;}return handleUnlocked(action,...args);}
+ async function household(action,req,user,{json,send,res,headers}){
+  if(!action.startsWith('control/estate-household')&&!action.startsWith('control/estate-gallery'))return false;
+  if(!ownerIds.has(user.id)&&!member(user.id))throw fail(403,'此账号没有府邸权限');
+  const owner=user.role==='owner'&&ownerIds.has(user.id),duties=journal.estateDuties||[];
+  const view=()=>({members:[{id:ownerId,name:'曾仪',role:'owner',identity:'主子',master:'曾家'},...roster.map(m=>({...m,role:'slave'}))],duties:(journal.estateDuties||[]).filter(d=>owner||d.memberId===user.id)});
+  if(action==='control/estate-household'&&req.method==='GET'){send(200,view());return true;}
+  if(action==='control/estate-household'&&req.method==='POST'){
+   const q=await json(req,12000);if(!text(q.requestId,100))throw fail(400,'缺少操作编号');const key=user.id+':'+q.requestId;
+   if((journal.householdRequests||[]).includes(key)){send(200,view());return true;}
+   const next=structuredClone(journal);next.estateDuties??=[];const at=stamp();
+   if(q.action==='assign'){
+    requireOwner(user);const m=requireMember(q.memberId);if(!text(q.title,80)||typeof q.description!=='string'||q.description.length>2000||q.dueAt!=null&&(!text(q.dueAt,40)||!Number.isFinite(Date.parse(q.dueAt))))throw fail(400,'请检查差事名称、说明及完成时间');if(next.estateDuties.length>=500)throw fail(409,'差事记录已达500条，请保留现有记录');
+    next.estateDuties.push({id:randomUUID(),memberId:m.id,executor:m.name,publisher:user.name,issuedBy:user.id,title:q.title.trim(),description:q.description,dueAt:q.dueAt||null,createdAt:at,updatedAt:at,status:'assigned',history:[{action:'assign',by:user.id,at}]});
+   }else{
+    const d=next.estateDuties.find(d=>d.id===q.id);if(!d)throw fail(404,'差事不存在');
+    if(q.action==='report'){if(user.id!==d.memberId||owner)throw fail(403,'只能回报自己的差事');if(d.status!=='assigned')throw fail(409,'当前差事不可重复提交');if(!text(q.report,2000))throw fail(400,'请填写完成情况');d.report=q.report.trim();d.status='submitted';d.reportedAt=at;}
+    else if(['accept','return','cancel'].includes(q.action)){requireOwner(user);if(q.action==='cancel'){if(!['assigned','submitted'].includes(d.status))throw fail(409,'当前差事不可撤回');d.status='cancelled';}else{if(d.status!=='submitted')throw fail(409,'请等待执行者提交回报');if(typeof q.review!=='string'||q.review.length>1000||q.action==='return'&&!q.review.trim())throw fail(400,'退回时请填写补充要求');d.review=q.review.trim();d.status=q.action==='accept'?'accepted':'assigned';d.reviewedBy=user.name;d.reviewedAt=at;}}
+    else throw fail(400,'差事操作无效');d.updatedAt=at;d.history.push({action:q.action,by:user.id,at,report:q.action==='report'?d.report:undefined,review:['accept','return'].includes(q.action)?d.review:undefined});
+   }
+   next.householdRequests=[...(next.householdRequests||[]),key].slice(-1000);await save(next);send(200,view());return true;
+  }
+  if(action==='control/estate-gallery'&&req.method==='GET'){send(200,{photos:owner?(journal.estateGallery||[]).filter(p=>p.ownerId===user.id):[],canManage:owner});return true;}
+  const photoMatch=action.match(/^control\/estate-gallery\/media\/([^/]+)$/);
+  if(photoMatch&&req.method==='GET'){
+   requireOwner(user);const photo=(journal.estateGallery||[]).find(p=>p.id===decodeURIComponent(photoMatch[1])&&p.ownerId===user.id);if(!photo)throw fail(404,'照片不存在');const entries=await manifest(user),entry=Object.values(entries).find(e=>e.store==='subscriptionMedia'&&e.meta.id===photo.mediaId);if(!entry)throw fail(404,'NAS照片原件不存在');const bytes=await readFile(join(root,user.id,'媒体',entry.key));if(hash(bytes)!==entry.hash)throw fail(500,'照片原件校验失败');res.writeHead(200,{...headers,'Cache-Control':'private, no-store','Content-Type':entry.type,'Content-Length':bytes.length,'X-Account-Fingerprint':entry.hash});res.end(bytes);return true;
+  }
+  if(action==='control/estate-gallery'&&req.method==='POST'){
+   requireOwner(user);const q=await json(req,4000);if(q.action!=='add'||!text(q.requestId,100)||!text(q.title,80)||!text(q.mediaId,100))throw fail(400,'照片信息无效');const old=(journal.estateGallery||[]).find(p=>p.ownerId===user.id&&p.mediaId===q.mediaId);if(old){send(200,{photo:old});return true;}
+   const entries=await manifest(user),entry=Object.values(entries).find(e=>e.store==='subscriptionMedia'&&e.meta.id===q.mediaId&&e.meta.purpose==='estate-gallery');if(!entry||!['image/png','image/jpeg','image/webp'].includes(entry.type)||entry.size>30*1024*1024)throw fail(400,'请先将照片上传NAS');const next=structuredClone(journal);next.estateGallery??=[];if(next.estateGallery.length>=500)throw fail(409,'画廊最多收藏500张照片');const photo={id:randomUUID(),ownerId:user.id,mediaId:q.mediaId,title:q.title.trim(),createdAt:stamp()};next.estateGallery.push(photo);await save(next);send(201,{photo});return true;
+  }
+  throw fail(405,'府邸系统请求方式无效');
+ }
+
  async function handleUnlocked(action,req,user,{json,send,res,headers}){
+  if(await household(action,req,user,{json,send,res,headers}))return true;
   if(action==='control/estate/presence'&&req.method==='POST'){if(!ownerIds.has(user.id)&&!member(user.id))throw fail(403,'此账号没有府邸权限');const q=await json(req,1024);if(q.active===false){estatePresence.set(user.id,0);send(200,{online:false});}else{estatePresence.set(user.id,now());send(200,{online:true});}return true;}
   estatePresence.set(user.id,now());
   if(await handleEstate(action,req,user,{json,send}))return true;

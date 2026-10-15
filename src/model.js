@@ -238,8 +238,8 @@ export function validateAchievements(state){
  if(state.achievementEvents!==undefined){if(!Array.isArray(state.achievementEvents)||state.achievementEvents.length>50000)throw Error('成就事件记录无效');const keys=new Set();for(const e of state.achievementEvents){if(!e||typeof e.key!=='string'||e.key.length>1000||keys.has(e.key)||!['total','task','gift','good','neutral','bad'].includes(e.series)||!validDate(e.date)||!(e.at===null||typeof e.at==='string'&&Number.isFinite(Date.parse(e.at))))throw Error('成就事件内容无效');keys.add(e.key);}}
 }
 
-export const ESTATE_SCENES=['bedroom','courtyard','shrine','lounge'];
-export const ESTATE_SCENE_NAMES={bedroom:'主子卧室',courtyard:'曾家前院',shrine:'曾家祠堂',lounge:'二层休息室'};
+export const ESTATE_SCENES=['bedroom','courtyard','shrine','lounge','gallery'];
+export const ESTATE_SCENE_NAMES={bedroom:'主子卧室',courtyard:'曾家前院',shrine:'曾家祠堂',lounge:'二层休息室',gallery:'三层画廊'};
 const estateItems=[
  ['plain','素色侍从服',100,'slave','top','#b3ac91'],['linen','粗布短衣',120,'slave','top','#867252'],['black-collar','普通黑色项圈',0,'slave','collar','#181819'],['crest','曾家纹章服',350,'slave','top','#487777'],['silk','锦缎礼服',800,'owner','top','#893c42'],['gold-suit','典藏金纹套装',2000,'owner','top','#a17a32'],
  ['bench','木凳',80,'both','furniture','courtyard'],['mat','草席',100,'both','furniture','courtyard'],['box','木质收纳箱',150,'both','furniture','courtyard'],['stone-lamp','石雕灯座',250,'both','furniture','courtyard'],['post','雕花木桩',300,'both','furniture','courtyard'],['cushion','锦纹软垫',400,'both','furniture','courtyard'],['flowers','花圃',450,'both','furniture','courtyard'],['lion','庭院石狮',1200,'both','furniture','courtyard'],
