@@ -352,3 +352,7 @@ button[data-action="update"].has-new-update{position:relative}button[data-action
 .estate-camera{position:absolute;right:9px;top:9px;z-index:3;width:34px;height:32px;min-height:0;padding:6px;margin:0;border:1px solid #dec79166;border-radius:8px;background:#32251acc;color:#f5ddac}.estate-camera svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linejoin:round}
 
 .app-version{margin:2px 0 0;color:#aaa391;font-size:12px;line-height:1.5}
+
+/* Compact task summaries retain full names, deadlines and descriptions on narrow screens. */
+.task-summary-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;overflow-wrap:anywhere}.task-summary-info strong{font-size:15px;line-height:1.45;white-space:normal}.task-summary-info small{display:block;font-size:12px;line-height:1.6;color:#aaa69d}.task-summary-info .task-summary-description{font-size:11px;color:#c0b7a8;white-space:pre-wrap}.owner-task-row>summary,.task-archive-card>summary{align-items:flex-start}.owner-task-row>summary>em{flex:0 0 auto;white-space:nowrap;font-size:12px;margin-top:3px}
+.task-summary-time>span{display:inline-block;white-space:nowrap}
