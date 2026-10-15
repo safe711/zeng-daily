@@ -40,7 +40,7 @@ export function drawCharacterFrame(c,a,clip='idle',k=0,{x=a.x,y=a.y,scale=1,flip
  if(frame.sourceClip){let path=frameClips.get(frame);if(!path){path=new Path2D();for(const [px,py,pw,ph]of frame.sourceClip)path.rect(px*frame.scale+dx-33,py*frame.scale+dy-56,pw*frame.scale,ph*frame.scale);frameClips.set(frame,path);}c.clip(path);}
  // Sample the original PNG directly into the final scene. No small atlas or intermediate bitmap.
  c.drawImage(image,sx,sy,w,h,sx*frame.scale+dx-33,sy*frame.scale+dy-56,w*frame.scale,h*frame.scale);
- if(!owner(a)){const item=ESTATE_CATALOG.find(i=>i.id===(a.avatar?.collar||'black-collar')&&i.kind==='collar'),image=item&&collarImage(item),p=frame.neck;if(image&&p&&!(clip==='carry'&&item.id==='black-collar')){c.save();c.translate(p.x-33,p.y-56);c.rotate(frame.neckAngle||0);c.drawImage(image,12,32,104,76,-4,-3,8,5);c.restore();}}
+ if(!owner(a)){const item=ESTATE_CATALOG.find(i=>i.id===(a.avatar?.collar||'black-collar')&&i.kind==='collar'),image=item&&collarImage(item),p=frame.neck;if(image&&p&&!((clip==='carry'||selected.asset==='male-kneeling-offer')&&item.id==='black-collar')){c.save();c.translate(p.x-33,p.y-56);c.rotate(frame.neckAngle||0);c.drawImage(image,12,32,104,76,-4,-3,8,5);c.restore();}}
  c.restore();return true;
 }
 export function characterAnchor(a,clip,k,point='neck'){
