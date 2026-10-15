@@ -30,3 +30,15 @@ export function mountIdentity(host,{getState,commit,upload,notify,getAccount=()=
 }
 
 export function identityModuleHtml(){return '<details class="family-panel family-contract" data-fold="identity-contract"><summary><span><small>IDENTITY & PLEDGE</small><strong>奴才契约</strong><em>宣读视频 · 手写签名 · 签约记录</em></span></summary><div class="family-panel-body"><section id="identity-contract"></section></div></details>';}
+
+// Whole handwritten pledge photos are distinct from the name-only signature pad.
+export function handwrittenContractIds(account,state={},assets=[]){
+ const known={'ZENG-DS-002':'zeng-ds-002-signed-pledge-20261010','ZENG-DZ-001':'family-disaster-01-pledge-20261010','ZENG-DZ-002':'family-disaster-02-pledge-20261010'},record=state.identityContract||{},roles=new Set(['identity-signed-document','servant-pledge-document','identity-contract','identity-contract-photo','identity-pledge','handwritten-contract','handwritten-pledge','signed-pledge','contract-photo','pledge-photo']);
+ const listed=assets.filter(a=>a.store==='subscriptionMedia'&&roles.has(a.meta?.role)&&(!Object.values(known).includes(a.meta?.id)||a.meta.id===known[account?.id])&&(!a.type||a.type.startsWith('image/'))).sort((a,b)=>(b.meta.createdAt||'').localeCompare(a.meta.createdAt||'')).map(a=>a.meta.id);
+ return [...new Set([record.handwrittenPhotoId,record.pledgePhotoId,record.contractPhotoId,record.photoId,known[account?.id],...listed].filter(id=>typeof id==='string'&&id.length))];
+}
+export async function loadHandwrittenContract(account,state,{loadMedia,listMedia=async()=>[]}={}){
+ const tried=new Set();async function find(ids){for(const id of ids){if(tried.has(id))continue;tried.add(id);let media;try{media=await loadMedia(id);}catch(error){if(error.status===404)continue;throw error;}if(media?.blob?.type?.startsWith('image/'))return{...media,id};}return null;}
+ const direct=await find(handwrittenContractIds(account,state));if(direct)return direct;
+ return find(handwrittenContractIds(account,state,await listMedia()));
+}
