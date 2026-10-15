@@ -30,7 +30,7 @@ import {syncPendingShoeMedia,shoeRecordKey} from './shoes.js';
 import {createNotifier} from './notifications.js';
 import {createLanBackup} from './lanbackup.js';
 import {createUpdater} from './updater.js';
-import {APP_VERSION,releaseLogHtml} from './version.js';
+import {APP_VERSION,CLIENT_BUILD,releaseLogHtml} from './version.js';
 import {certificateGuideHtml} from './certificate.js';
 import {createTask,tasksHtml,deleteTask,taskType,taskHistoryHtml} from './tasks.js';
 import {mountTask} from './taskview.js';
@@ -49,9 +49,14 @@ const seal=document.querySelector('.seal');
 seal.textContent='';seal.setAttribute('role','img');seal.setAttribute('aria-label','ZENG LEGACY 龙纹标识');
 const message = document.querySelector('#message');
 const notify=createNotifier(message);
-let updateAvailable=false;
-function paintUpdateBadge(){for(const button of document.querySelectorAll('nav [data-page="隐私"],button[data-action="update"]')){const label=button.dataset.page==='隐私'?'隐私':'检查更新';button.classList.toggle('has-new-update',updateAvailable);button.setAttribute('aria-label',updateAvailable?label+'，有版本更新':label);}}
-const checkForUpdate=createUpdater({notify,onAvailable:available=>{updateAvailable=available;paintUpdateBadge();}});
+const versionLabel=document.createElement('p');
+versionLabel.className='app-version';versionLabel.dataset.appVersion=APP_VERSION;
+document.querySelector('header h1').after(versionLabel);
+const currentUrl=new URL(location.href);
+if(currentUrl.searchParams.has('app-build')&&currentUrl.searchParams.get('app-build')!==CLIENT_BUILD){currentUrl.searchParams.set('app-build',CLIENT_BUILD);history.replaceState(history.state,'',currentUrl);}
+let updateAvailable=false,latestVersion=null;
+function paintUpdateBadge(){versionLabel.textContent='当前版本 '+APP_VERSION+(updateAvailable&&latestVersion?' · 最新 '+latestVersion:'');for(const button of document.querySelectorAll('nav [data-page="隐私"],button[data-action="update"]')){const label=button.dataset.page==='隐私'?'隐私':'检查更新';button.classList.toggle('has-new-update',updateAvailable);button.setAttribute('aria-label',updateAvailable?label+'，有版本更新':label);}}
+const checkForUpdate=createUpdater({notify,onAvailable:(available,build)=>{updateAvailable=available;latestVersion=/^daily-shell-v(\d+\.\d+\.\d+)$/.exec(build||'')?.[1]||null;paintUpdateBadge();}});
 window.addEventListener('online',()=>checkForUpdate.peek());
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkForUpdate.peek();});
 setInterval(()=>{if(!document.hidden)checkForUpdate.peek();},300000);
