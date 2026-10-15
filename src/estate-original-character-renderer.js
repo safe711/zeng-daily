@@ -10,9 +10,10 @@ const ASSETS=anchorBowKnees({...BASE_ASSETS,...RIDING_ORIGINAL_ASSETS,...EXPANSI
 const images={},frameClips=new WeakMap(),collars=new Map();function collarImage(item){if(!collars.has(item.id)){const image=new Image();image.src=wearableGoodsIcon(item);collars.set(item.id,image);}const image=collars.get(item.id);return image.complete&&image.naturalWidth?image:null;}
 const owner=a=>a.role==='owner'||a.id==='ZENG_OWNER_001';
 const moving=clip=>['walk','run','stop'].includes(clip);
-const loadedJobs=new Map();function loadAsset(id){if(loadedJobs.has(id))return loadedJobs.get(id);const asset=ASSETS[id],job=loadOriginalImage(new URL('../'+asset.file.replace(/^\.\//,''),import.meta.url).href+'?original='+asset.hash).then(im=>{images[id]=im;return im;});loadedJobs.set(id,job);job.catch(()=>loadedJobs.delete(id));return job;}
-async function loadCharacters(){const entries=Object.keys(ASSETS).filter(id=>!/^model-hat-/.test(id)&&!['male-bow','female-bow','male-guard','female-guard','male-bark','female-bark','model-outfit-01'].includes(id));let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<entries.length){const id=entries[cursor++];await loadAsset(id).catch(error=>{throw Error('角色原图载入失败 '+id+'：'+error.message);});}}));await Promise.all(ESTATE_CATALOG.filter(i=>i.kind==='collar').map(item=>new Promise(resolve=>{const im=new Image();im.onload=resolve;im.onerror=resolve;im.src=wearableGoodsIcon(item);collars.set(item.id,im);})))}
-export const characterReady=typeof Image==='undefined'?Promise.resolve():loadCharacters();
+const loadedJobs=new Map();function loadAsset(id){if(loadedJobs.has(id))return loadedJobs.get(id);const asset=ASSETS[id],job=loadOriginalImage(new URL('../'+asset.file.replace(/^\.\//,''),import.meta.url).href+'?original='+asset.hash).then(im=>{images[id]=im;globalThis.dispatchEvent?.(new Event('estate-character-ready'));return im;});loadedJobs.set(id,job);job.catch(()=>loadedJobs.delete(id));return job;}
+// Original sheets are requested only by visible actors, previews or outfit thumbnails.
+export const characterReady=Promise.resolve();
+export function prepareCharacter(a,clip='idle',k=0){const selected=characterSelection(a,clip,k);return loadAsset(selected.id);}
 // Select an authored original sequence. Never repaint, recolour or splice its character.
 export function characterSelection(a,clip,k=0){
  const look=ESTATE_CATALOG.find(i=>i.id===a.avatar?.outfit&&i.wholeAppearance),g=look?.gender||a.gender||(owner(a)?'female':'male'),male=g==='male';
