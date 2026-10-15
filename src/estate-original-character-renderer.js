@@ -1,3 +1,4 @@
+import {IMPORTED_ORIGINAL_ASSETS} from './estate-imported-originals.js';
 import {anchorBowKnees} from './estate-bow-anchors.js';
 import {EXPANSION_ORIGINAL_ASSETS} from './estate-expansion-originals.js';
 import {wearableGoodsIcon} from './estate-goods.js';
@@ -6,7 +7,7 @@ import {RIDING_ORIGINAL_ASSETS} from './estate-riding-originals.js';
 import {loadOriginalImage} from './estate-original-image-cache.js';
 import {ESTATE_CATALOG} from './model.js';
 import {isDisasterActor} from './estate-world.js';
-const ASSETS=anchorBowKnees({...BASE_ASSETS,...RIDING_ORIGINAL_ASSETS,...EXPANSION_ORIGINAL_ASSETS},BASE_ASSETS);
+const ASSETS=anchorBowKnees({...BASE_ASSETS,...RIDING_ORIGINAL_ASSETS,...EXPANSION_ORIGINAL_ASSETS,...IMPORTED_ORIGINAL_ASSETS},BASE_ASSETS);
 const images={},frameClips=new WeakMap(),collars=new Map();function collarImage(item){if(!collars.has(item.id)){const image=new Image();image.src=wearableGoodsIcon(item);collars.set(item.id,image);}const image=collars.get(item.id);return image.complete&&image.naturalWidth?image:null;}
 const owner=a=>a.role==='owner'||a.id==='ZENG_OWNER_001';
 const moving=clip=>['walk','run','stop'].includes(clip);
@@ -17,6 +18,7 @@ export function prepareCharacter(a,clip='idle',k=0){const selected=characterSele
 // Select an authored original sequence. Never repaint, recolour or splice its character.
 export function characterSelection(a,clip,k=0){
  const look=ESTATE_CATALOG.find(i=>i.id===a.avatar?.outfit&&i.wholeAppearance),g=look?.gender||a.gender||(owner(a)?'female':'male'),male=g==='male';
+ if(isDisasterActor(a))return{id:'elder-'+g+'-actions-v1',index:clip==='crawl'?6+k%4:['bow','disaster-bow'].includes(clip)?[0,1,2,3,4][k%5]:0};if(clip==='basin')return{id:'female-basin-hold-v1',index:k%4};
  const prison=!owner(a)||look?.id?.startsWith('appearance-prison-');if(clip==='recline'&&look?.id?.startsWith('model-outfit-')&&look.id!=='model-outfit-01')return{id:look.id+'-recline',index:k%2};if(clip==='recline'){const id=look?.id==='model-outfit-01'?'owner-lounge-recline':male?'male-lounge-recline':look?.id==='appearance-female-orange'?'female-orange-lounge-recline':'female-black-lounge-recline';return{id,index:k%4};}if(clip==='massage'&&male)return{id:'male-kneeling-offer',index:[0,3,0,3][k%4]};if(clip==='massage')return{id:a.scene==='lounge'?g+'-shoeless':g+'-prison',index:[6,11,6,11][k%4]};if(a.scene==='lounge'){if(prison){if(clip==='carry'){const frame=k%4;return{id:g==='female'?'female-carry-shoeless':frame===0?'male-carry-first-shoeless':'male-carry-master-shoeless',index:frame};}if(clip==='bark')return{id:g+'-shoeless',index:23};return{id:g+'-shoeless',index:['bow','kneel','sniff'].includes(clip)?6+(clip==='kneel'?0:clip==='sniff'?3:k%5):clip==='crawl'?12+k%6:clip==='guard'?18+k%4:moving(clip)?12+k%6:6};}if(look?.id==='model-outfit-01'){if(clip==='ride')return{id:'owner-riding-shoeless',index:k%4};if(moving(clip))return{id:'owner-shoeless-walk',index:k%8};return{id:'owner-normal-shoeless',index:['sit'].includes(clip)?4+k%2:clip==='lie'?6+k%2:clip==='win'?14+k%2:12+k%2};}}
  if(prison){if(clip==='carry'){const frame=k%4;if(g==='female'&&ASSETS['female-carry'])return{id:'female-carry',index:frame};if(g==='male')return{id:frame===0?'male-carry-first':'male-carry-master',index:frame===0?0:frame};return{id:g+'-prison',index:12+frame};}if(clip==='bark')return{id:g+'-friendly-bark',index:k%2};const id=g+'-prison';return{id,index:['bow','kneel','sniff'].includes(clip)?6+(clip==='kneel'?0:clip==='sniff'?3:k%5):clip==='crawl'?12+k%6:clip==='guard'?18+k%4:moving(clip)?12+k%6:6};}
  const normalClip=['sit','ride','lie','win'].includes(clip)?clip:'idle';
@@ -41,7 +43,7 @@ export function drawCharacterFrame(c,a,clip='idle',k=0,{x=a.x,y=a.y,scale=1,flip
  if(frame.sourceClip){let path=frameClips.get(frame);if(!path){path=new Path2D();for(const [px,py,pw,ph]of frame.sourceClip)path.rect(px*frame.scale+dx-33,py*frame.scale+dy-56,pw*frame.scale,ph*frame.scale);frameClips.set(frame,path);}c.clip(path);}
  // Sample the original PNG directly into the final scene. No small atlas or intermediate bitmap.
  c.drawImage(image,sx,sy,w,h,sx*frame.scale+dx-33,sy*frame.scale+dy-56,w*frame.scale,h*frame.scale);
- if(!owner(a)){const item=ESTATE_CATALOG.find(i=>i.id===(a.avatar?.collar||'black-collar')&&i.kind==='collar'),image=item&&collarImage(item),p=frame.neck;if(image&&p&&!((clip==='carry'||selected.asset==='male-kneeling-offer')&&item.id==='black-collar')){c.save();c.translate(p.x-33,p.y-56);c.rotate(frame.neckAngle||0);c.drawImage(image,12,32,104,76,-4,-3,8,5);c.restore();}}
+ if(!owner(a)){const item=ESTATE_CATALOG.find(i=>i.id===(a.avatar?.collar||'black-collar')&&i.kind==='collar'),image=item&&collarImage(item),p=frame.neck;if(image&&p&&!((clip==='carry'||selected.asset==='male-kneeling-offer'||selected.asset.startsWith('elder-')||clip==='basin')&&item.id==='black-collar')){c.save();c.translate(p.x-33,p.y-56);c.rotate(frame.neckAngle||0);c.drawImage(image,12,32,104,76,-4,-3,8,5);c.restore();}}
  c.restore();return true;
 }
 export function characterAnchor(a,clip,k,point='neck'){
