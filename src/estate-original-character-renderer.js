@@ -1,16 +1,17 @@
+import {anchorBowKnees} from './estate-bow-anchors.js';
 import {EXPANSION_ORIGINAL_ASSETS} from './estate-expansion-originals.js';
-import {goodsIcon} from './estate-goods.js';
+import {wearableGoodsIcon} from './estate-goods.js';
 import {ORIGINAL_CHARACTER_ASSETS as BASE_ASSETS} from './estate-character-originals.js';
 import {RIDING_ORIGINAL_ASSETS} from './estate-riding-originals.js';
 import {loadOriginalImage} from './estate-original-image-cache.js';
 import {ESTATE_CATALOG} from './model.js';
 import {isDisasterActor} from './estate-world.js';
-const ASSETS={...BASE_ASSETS,...RIDING_ORIGINAL_ASSETS,...EXPANSION_ORIGINAL_ASSETS};
-const images={},frameClips=new WeakMap(),collars=new Map();function collarImage(item){if(!collars.has(item.id)){const image=new Image();image.src=goodsIcon(item);collars.set(item.id,image);}const image=collars.get(item.id);return image.complete&&image.naturalWidth?image:null;}
+const ASSETS=anchorBowKnees({...BASE_ASSETS,...RIDING_ORIGINAL_ASSETS,...EXPANSION_ORIGINAL_ASSETS},BASE_ASSETS);
+const images={},frameClips=new WeakMap(),collars=new Map();function collarImage(item){if(!collars.has(item.id)){const image=new Image();image.src=wearableGoodsIcon(item);collars.set(item.id,image);}const image=collars.get(item.id);return image.complete&&image.naturalWidth?image:null;}
 const owner=a=>a.role==='owner'||a.id==='ZENG_OWNER_001';
 const moving=clip=>['walk','run','stop'].includes(clip);
 const loadedJobs=new Map();function loadAsset(id){if(loadedJobs.has(id))return loadedJobs.get(id);const asset=ASSETS[id],job=loadOriginalImage(new URL('../'+asset.file.replace(/^\.\//,''),import.meta.url).href+'?original='+asset.hash).then(im=>{images[id]=im;return im;});loadedJobs.set(id,job);job.catch(()=>loadedJobs.delete(id));return job;}
-async function loadCharacters(){const entries=Object.keys(ASSETS).filter(id=>!/^model-hat-/.test(id)&&!['male-bow','female-bow','male-guard','female-guard','male-bark','female-bark','model-outfit-01'].includes(id));let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<entries.length){const id=entries[cursor++];await loadAsset(id).catch(error=>{throw Error('角色原图载入失败 '+id+'：'+error.message);});}}));await Promise.all(ESTATE_CATALOG.filter(i=>i.kind==='collar').map(item=>new Promise(resolve=>{const im=new Image();im.onload=resolve;im.onerror=resolve;im.src=goodsIcon(item);collars.set(item.id,im);})))}
+async function loadCharacters(){const entries=Object.keys(ASSETS).filter(id=>!/^model-hat-/.test(id)&&!['male-bow','female-bow','male-guard','female-guard','male-bark','female-bark','model-outfit-01'].includes(id));let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<entries.length){const id=entries[cursor++];await loadAsset(id).catch(error=>{throw Error('角色原图载入失败 '+id+'：'+error.message);});}}));await Promise.all(ESTATE_CATALOG.filter(i=>i.kind==='collar').map(item=>new Promise(resolve=>{const im=new Image();im.onload=resolve;im.onerror=resolve;im.src=wearableGoodsIcon(item);collars.set(item.id,im);})))}
 export const characterReady=typeof Image==='undefined'?Promise.resolve():loadCharacters();
 // Select an authored original sequence. Never repaint, recolour or splice its character.
 export function characterSelection(a,clip,k=0){
