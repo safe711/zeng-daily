@@ -48,6 +48,7 @@ export function configureSubscription(subscription,{amount,payee}){
 export function recordPayment(subscription,{id,paidDate,note='',disasterMemberIds,now=new Date()},today){
   validateSubscription(subscription);
   if(!isDate(today)||!isDate(paidDate)||paidDate>today)throw Error('请选择不晚于今天的实际付款日期');
+  if(subscriptionStatus(subscription,today).active)throw Error('订阅中，本期到期后再付款');
   if(subscription.stopped)throw Error('请先恢复续费提示');
   if(!subscription.plan.amountCents)throw Error('请先设置并确认每月金额');
   if(!subscription.contractId)throw Error('请先导入协议原件');
