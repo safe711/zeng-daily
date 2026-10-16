@@ -1,3 +1,4 @@
+import {preloadOwnerPortrait} from './owner-portrait.js';
 import {estateHtml,mountEstate,estateKeepsView} from './estate.js';
 import {achievementsHtml,mountAchievements,achievementsKeepView} from './achievements.js';
 import {isOwner,mountOwner,ownerAvatarHtml,createRoleController} from './owner.js';
@@ -40,6 +41,7 @@ import {buildShoeCard} from './shoecard.js';
 import {getShoePhoto} from './photos.js';
 import {familyPageHtml} from './family.js';
 const startupReady=showStartup();
+preloadOwnerPortrait().catch(()=>{});
 installDialogDismissal();
 captureDaysMatterShare();
 const staticHosting=isStaticHosting();
@@ -64,11 +66,11 @@ let state;
 let storageFailed = false;
 try { state = readState(); } catch { state = initialState(); storageFailed = true; }
 const lanBackup=createLanBackup({photos:async()=>(await listPhotos()).filter(usedRitualPhoto),records:()=>state.shoeRecords,tasks:()=>state.tasks,notify,getAccountToken:()=>accountClient?.token});
-const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onAuthenticated:()=>setHidden(false),onConnection:paintConnection,onWelcome:profile=>{startupReady.then(()=>{if(!hidden&&accountClient.loggedIn&&accountClient.profile?.id===profile.id){notify('');showWelcome(profile,state.servantProfile);if(isOwner(profile))ownerPortrait(document.body);}});},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){archiveEditing=false;page=isOwner(accountClient.profile)?'家规':hasPendingDaysMatter()?'档案':'今日';roleController.reset();setTimeout(()=>roleController.refresh(),0);hidden=isAccountLocked();ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
+const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onAuthenticated:()=>{setHidden(false);preloadOwnerPortrait(()=>lanBackup.readProfilePhoto()).catch(()=>{});},onConnection:paintConnection,onWelcome:profile=>{(async()=>{await startupReady;let portrait=null;if(isOwner(profile)){try{portrait=await preloadOwnerPortrait(()=>lanBackup.readProfilePhoto());}catch{if(accountClient.loggedIn&&accountClient.profile?.id===profile.id)notify('登录成功，主子头像暂未加载，已跳过欢迎框');return;}}if(!hidden&&accountClient.loggedIn&&accountClient.profile?.id===profile.id){notify('');showWelcome(profile,state.servantProfile,portrait?.url);}})();},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){archiveEditing=false;page=isOwner(accountClient.profile)?'家规':hasPendingDaysMatter()?'档案':'今日';roleController.reset();setTimeout(()=>roleController.refresh(),0);hidden=isAccountLocked();ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
 let page = '今日';
 let unmountOwner=()=>{};
 const roleController=createRoleController({client:accountClient,getState:()=>state,isVisible:()=>!hidden&&!document.hidden,notify,onBadge:reviews=>{const nav=document.querySelector('nav [data-page="积分"]');if(nav){nav.classList.toggle('has-new-review',reviews.some(r=>r.unread));}for(const cell of content.querySelectorAll('[data-calendar-date]')){cell.querySelector('.review-red-dot')?.remove();if(reviews.some(r=>r.unread&&r.date===cell.dataset.calendarDate))cell.insertAdjacentHTML('beforeend','<i class="review-red-dot"></i>');}}});
-async function ownerPortrait(host){const owner=accountClient.profile?.id;try{let a=await getSubscriptionMedia('master-profile-photo');if(!a?.blob){const blob=await lanBackup.readProfilePhoto();a={id:'master-profile-photo',role:'profile-photo',blob};await saveSubscriptionMedia(a);}if(accountClient.profile?.id!==owner||!host.isConnected)return;for(const holder of host.querySelectorAll('[data-owner-photo]')){const img=document.createElement('img'),url=URL.createObjectURL(a.blob);photoUrls.push(url);img.src=url;img.alt='曾仪主子';holder.prepend(img);holder.querySelector('.avatar-silhouette')?.remove();}}catch{}}
+async function ownerPortrait(host){const owner=accountClient.profile?.id;try{const portrait=await preloadOwnerPortrait(()=>lanBackup.readProfilePhoto());if(accountClient.profile?.id!==owner||!host.isConnected)return;for(const holder of host.querySelectorAll('[data-owner-photo]')){if(holder.querySelector('img'))continue;const img=document.createElement('img');img.src=portrait.url;img.alt='曾仪主子';holder.prepend(img);holder.querySelector('.avatar-silhouette')?.remove();}}catch{}}
 setInterval(()=>roleController.refresh(),30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)roleController.refresh();});
 let archiveEditing=false;
 let accountWasLoggedIn=false;
@@ -190,7 +192,7 @@ function render() {
   const paused = state.settings.paused;
   const status=accountClient.connected?'<span data-server-connection class="network-online">在线</span>':'<span data-server-connection class="network-offline">离线</span>';
   const heading = `<div class="eyebrow account-presence">${escape(accountClient.profile.name)} · ${status}<time datetime="${dayKey()}">${dayKey()}</time>${paused?' · 已暂停':''}</div><h2>${page==='今日'?'每日礼仪':page==='订阅'?'订阅挡灾':page}</h2>`;
-  if(isOwner(accountClient.profile)&&['奴才管理','任务管理','档案','订阅'].includes(page)){content.innerHTML=heading+(page==='奴才管理'?estateHtml():'')+'<div data-owner-host></div>';if(page==='奴才管理')unmountEstate=mountEstate(content,{getState:()=>state,getAccount:()=>accountClient.profile,commit:change=>commit(change,false),client:accountClient,notify});unmountOwner=mountOwner(content.querySelector('[data-owner-host]'),{client:accountClient,page,notify,getOwnerPhoto:()=>lanBackup.readProfilePhoto()});return;}
+  if(isOwner(accountClient.profile)&&['奴才管理','任务管理','档案','订阅'].includes(page)){content.innerHTML=heading+(page==='奴才管理'?estateHtml():'')+'<div data-owner-host></div>';if(page==='奴才管理')unmountEstate=mountEstate(content,{getState:()=>state,getAccount:()=>accountClient.profile,commit:change=>commit(change,false),client:accountClient,notify});unmountOwner=mountOwner(content.querySelector('[data-owner-host]'),{client:accountClient,page,notify,getOwnerPhoto:async()=>(await preloadOwnerPortrait(()=>lanBackup.readProfilePhoto())).blob});return;}
   if(isOwner(accountClient.profile)&&!['家规','隐私'].includes(page)){page='家规';render();return;}
   let body = '';
   if(page==='家规')body=familyPageHtml();

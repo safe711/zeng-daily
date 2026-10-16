@@ -1,3 +1,4 @@
+import {preloadOwnerForAccount} from './owner-portrait.js';
 import {loginAccountId,genderFor} from './familyui.js';
 import {isOwner,ownerAvatarHtml} from './owner.js';
 import {servantAvatarHtml} from './servant.js';
@@ -69,6 +70,7 @@ export function createAccountClient({getState,onState,onChanged,onWelcome=()=>{}
  function passwordView(host,{loginMode=false,onVerified}={}){
  let remembered;try{remembered=JSON.parse(storage.getItem('daily-account-last-profile'));}catch{}
  let account=loginAccountId(loginMode?(remembered?.id||session?.profile.loginAccount||session?.profile.id||'ZENG_DS_002'):session.profile.id);
+ if(loginMode&&(remembered?.id||session?.profile?.id))preloadOwnerForAccount(account).catch(()=>{});
  const expected=4;let digits='',running=false;
  const recent=recentAccounts().map(p=>({...p,id:loginAccountId(p.id)}));for(const p of [session?.profile,remembered])if(p?.id&&!recent.some(r=>r.id===loginAccountId(p.id)))recent.push({id:loginAccountId(p.id),name:p.name||p.id});
  const recentHtml=recent.map(p=>'<button type="button" class="recent-account" data-recent-account="'+esc(p.id)+'"><strong>'+esc(p.name)+'</strong><small>'+esc(p.id)+'</small></button>').join('');
@@ -80,15 +82,15 @@ export function createAccountClient({getState,onState,onChanged,onWelcome=()=>{}
  function verified(result){if(result.verified!==true||result.userId!==session?.profile.id)throw Error('身份验证未通过');onVerified();}
  function verify(){if(digits.length!==4||!/^\d{4}$/.test(digits)||running)return;const password=digits;run(async()=>{if(loginMode)await login(account,password);else verified(await json('unlock/password',{method:'POST',data:{password}}));});}
  function feedback(value){const b=host.querySelector('[data-unlock-key="'+value+'"]');if(!b)return;b.classList.remove('key-feedback');void b.offsetWidth;b.classList.add('key-feedback');}
- function input(value){if(running||!switchForm.hidden)return;feedback(value);clearError();if(value==='clear')digits='';else if(value==='delete')digits=digits.slice(0,-1);else if(digits.length<(expected||128))digits+=value;paint();if(expected&&digits.length===expected)verify();}
+ function input(value){if(running||!switchForm.hidden)return;if(loginMode&&/^[0-9]$/.test(value))preloadOwnerForAccount(account).catch(()=>{});feedback(value);clearError();if(value==='clear')digits='';else if(value==='delete')digits=digits.slice(0,-1);else if(digits.length<(expected||128))digits+=value;paint();if(expected&&digits.length===expected)verify();}
  host.querySelector('.unlock-keypad').onclick=e=>{const b=e.target.closest('[data-unlock-key]');if(b){e.stopPropagation();input(b.dataset.unlockKey);}};
  host.querySelector('.unlock-finish').onclick=verify;
- native.oninput=()=>{if(running)return;digits=native.value.replace(/\D/g,'').slice(0,4);native.value=digits;clearError();paint();if(digits.length===4)verify();};
+ native.oninput=()=>{if(running)return;if(loginMode)preloadOwnerForAccount(account).catch(()=>{});digits=native.value.replace(/\D/g,'').slice(0,4);native.value=digits;clearError();paint();if(digits.length===4)verify();};
  host.tabIndex=-1;host.focus({preventScroll:true});host.onkeydown=e=>{if(e.target===native){if(e.key==='Enter'){e.preventDefault();verify();}return;}if(e.target.closest('[data-account-switch]'))return;if(/^[0-9]$/.test(e.key)){e.preventDefault();input(e.key);}else if(e.key==='Backspace'){e.preventDefault();input('delete');}else if(e.key==='Enter'){e.preventDefault();verify();}};
  host.querySelector('[data-account-unlock-face]').onclick=e=>{e.stopPropagation();digits='';native.value='';paint();run(async()=>{if(loginMode){await faceLogin(account);return;}const data=await json('unlock/options',{method:'POST',data:{}});const c=await navigator.credentials.get({publicKey:credentialOptions(data.options,false)});if(!c)throw Error('Face ID 验证已取消');verified(await json('unlock/face',{method:'POST',data:{challengeId:data.challengeId,response:credentialJSON(c)}}));});};
  host.querySelector('[data-auth-switch]').onclick=async e=>{e.stopPropagation();if(running)return;digits='';native.value='';paint();clearError();if(!loginMode){e.target.disabled=true;try{await logout();const target=document.querySelector('[data-account-switch]');if(target){target.hidden=false;target.querySelector('input').focus();}}catch(error){message.textContent=error.message;e.target.disabled=false;}return;}switchForm.hidden=!switchForm.hidden;if(!switchForm.hidden)switchForm.querySelector('input').focus();};
  switchForm.querySelectorAll('[data-recent-account]').forEach(button=>button.onclick=()=>{switchForm.elements.account.value=button.dataset.recentAccount;switchForm.requestSubmit();});
- switchForm.onsubmit=e=>{e.preventDefault();e.stopPropagation();const next=switchForm.elements.account.value.trim().toUpperCase();if(!next)return;account=next;digits='';native.value='';clearError();paint();switchForm.hidden=true;host.querySelector('[data-auth-account]').textContent=account;host.querySelector('.unlock-keypad').hidden=false;host.querySelector('.unlock-finish').hidden=!!expected;host.querySelector('.unlock-instruction').textContent='请输入账号密码';host.focus({preventScroll:true});};
+ switchForm.onsubmit=e=>{e.preventDefault();e.stopPropagation();const next=switchForm.elements.account.value.trim().toUpperCase();if(!next)return;account=next;preloadOwnerForAccount(account).catch(()=>{});digits='';native.value='';clearError();paint();switchForm.hidden=true;host.querySelector('[data-auth-account]').textContent=account;host.querySelector('.unlock-keypad').hidden=false;host.querySelector('.unlock-finish').hidden=!!expected;host.querySelector('.unlock-instruction').textContent='请输入账号密码';host.focus({preventScroll:true});};
  paint();
  }
  async function loadPrivateMedia(id){if(!valid()||!ready)throw Error('请先登录账号');const owner=session.token,key=await mediaKey('subscriptionMedia',id),manifest=await json('media'),asset=manifest.assets.find(a=>a.key===key&&a.store==='subscriptionMedia');if(!asset)return null;const response=await request('media/'+key,{timeout:180000}),blob=await response.blob();if(session?.token!==owner)throw Error('账号已切换');if(await photoFingerprint(blob)!==asset.hash)throw Error('附件内容校验失败');await importMedia([{store:asset.store,meta:asset.meta,blob}],{notify:false});return {...asset.meta,blob};}
