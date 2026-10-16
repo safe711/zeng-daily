@@ -8,6 +8,12 @@ export const ETIQUETTE_TRADITIONS=[
   {name:'下元节',month:10,day:15},{name:'腊八节',month:12,day:8},
   {name:'小年',month:12,day:23},{name:'小年',month:12,day:24}
 ];
+export const ETIQUETTE_PREVIEWS=[...new Set(['除夕','春节',...ETIQUETTE_TRADITIONS.map(x=>x.name),'清明节','寒食节','冬至'])];
+export function estateFestivalPreview(name,now=Date.now()){
+  if(!ETIQUETTE_PREVIEWS.includes(name))return null;
+  const spring=name==='春节'||name==='除夕';
+  return {active:true,preview:true,key:'preview:'+name,kind:'holiday',date:etiquetteCalendar(now).date,names:[name],messages:[spring?'感恩曾家':'曾家主子'+name+'快乐'],spring,tethered:true,startAt:now,endsAt:now+86400000};
+}
 const DAY=86400000,HK=8*3600000,lunarFormat=new Intl.DateTimeFormat('en-u-ca-chinese',{timeZone:'Asia/Hong_Kong',year:'numeric',month:'numeric',day:'numeric'});
 const days=new Map();
 export function etiquetteCalendar(now){
