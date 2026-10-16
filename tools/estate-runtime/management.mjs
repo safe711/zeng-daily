@@ -41,6 +41,7 @@ function estateWalkTarget(site,kind,actor){if(isDisasterActor(actor))return esta
 import {readFile,mkdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
+import {createGrowthManagement} from './growth-management.mjs';
 import {initialState,validateState,validDate,saveGift,mergeAchievementHistory,estateDefaults,normalizeEstateAvatar,applyWholeAppearance,isWholeAppearance,isEstateBall,estateBalance,validateEstate,purchaseEstateItem,ESTATE_CATALOG,ESTATE_SCENES,accountGender} from '../src/model.js';
 import {createTask} from '../src/tasks.js';
 const ownerId='ZENG_OWNER_001',ownerIds=new Set([ownerId,'OWNERTEST']);
@@ -64,11 +65,12 @@ export async function createManagement(root,{snapshot,manifest,atomic,now,databa
   const occupied=new Set();for(const gift of s.masterGifts){while(occupied.has(gift.slot))gift.slot++;occupied.add(gift.slot);}while(s.masterGifts.some(g=>g.slot>=s.giftSlots-1))s.giftSlots+=6;
   const removed=new Set((journal.deletedTasks||[]).filter(r=>r.memberId===id).map(r=>r.taskId));s.tasks=s.tasks.filter(t=>!removed.has(t.id));const recordIds=new Set(s.shoeRecords.filter(r=>removed.has(r.taskId)).map(r=>r.id));s.shoeRecords=s.shoeRecords.filter(r=>!removed.has(r.taskId));s.records=s.records.filter(r=>!recordIds.has(r.shoeRecordId));
   s.estate=structuredClone(journal.estateAccounts?.[id]||s.estate||estateDefaults(ownerIds.has(id)?'owner':'slave',accountGender({id})));
-  normalizeEstateAvatar(s.estate,ownerIds.has(id)?'owner':'slave');s.ownerReviews=journal.reviews.filter(r=>r.memberId===id).map(r=>({...r,unread:!(journal.acks[id]||[]).includes(r.eventId)}));return s;
+  normalizeEstateAvatar(s.estate,ownerIds.has(id)?'owner':'slave');s.ownerReviews=journal.reviews.filter(r=>r.memberId===id).map(r=>({...r,unread:!(journal.acks[id]||[]).includes(r.eventId)}));if(member(id))s.growth=growth.project(id,s);else delete s.growth;return s;
  }
  async function protect(user,incoming,current){const out=structuredClone(incoming);if(user.role!=='owner'&&current.state){out.masterGifts=structuredClone(current.state?.masterGifts||[]);out.giftSlots=current.state?.giftSlots||18;}out.estate=structuredClone(journal.estateAccounts?.[user.id]||current.state?.estate||estateDefaults(user.role,accountGender(user)));mergeAchievementHistory(out,current.state);const result=project(user.id,out);validateState(result);return result;}
  const stamp=()=>new Date(now()).toISOString();
  const event=(next,id,kind,data)=>{const e={id:randomUUID(),memberId:id,kind,createdAt:stamp(),...data};next.events.push(e);return e;};
+ const growth=createGrowthManagement({getJournal:()=>journal,save,raw:async id=>project(id,await raw(id)),member,requireOwner,event,now});
  async function inbox(user){const ack=new Set(journal.acks[user.id]||[]);return {events:journal.events.filter(e=>e.memberId===user.id&&!ack.has(e.id)),reviews:journal.reviews.filter(r=>r.memberId===user.id).map(r=>({...r,unread:!ack.has(r.eventId)})),revision:journal.revision};}
 
  const estatePresence=new Map(),estateBootAt=now();
@@ -175,7 +177,7 @@ function makeFetchMotion(id,ownerId,targetId,leader,dog,ballItemId,startedAt){co
  else throw fail(400,'未知府邸操作');for(const [id,e] of Object.entries(next.estateAccounts)){normalizeEstateAvatar(e,ownerIds.has(id)?'owner':'slave');validateEstate(e);};if(q.kind!=='position')next.estateRequests=[...(next.estateRequests||[]),{id:q.requestId,userId:user.id}].slice(-2000);await save(next,['position','travel'].includes(q.kind)?null:user.id);send(200,await estateView(user));return true;}
 
  let estateQueue=Promise.resolve();
- async function handle(action,...args){if(action.startsWith('control/estate')){const job=estateQueue.then(()=>handleUnlocked(action,...args));estateQueue=job.catch(()=>{});return job;}return handleUnlocked(action,...args);}
+ async function handle(action,...args){if(action.startsWith('control/estate')||action.startsWith('control/')&&args[0]?.method!=='GET'){const job=estateQueue.then(()=>handleUnlocked(action,...args));estateQueue=job.catch(()=>{});return job;}return handleUnlocked(action,...args);}
  async function household(action,req,user,{json,send,res,headers}){
   if(!action.startsWith('control/estate-household')&&!action.startsWith('control/estate-gallery'))return false;
   if(!ownerIds.has(user.id)&&!member(user.id))throw fail(403,'此账号没有府邸权限');
@@ -210,6 +212,7 @@ function makeFetchMotion(id,ownerId,targetId,leader,dog,ballItemId,startedAt){co
  }
 
  async function handleUnlocked(action,req,user,{json,send,res,headers}){
+  if(await growth.handle(action,req,user,{json,send}))return true;
   if(await household(action,req,user,{json,send,res,headers}))return true;
   if(action==='control/estate/presence'&&req.method==='POST'){if(!ownerIds.has(user.id)&&!member(user.id))throw fail(403,'此账号没有府邸权限');const q=await json(req,1024);if(q.active===false){estatePresence.set(user.id,0);send(200,{online:false});}else{estatePresence.set(user.id,now());send(200,{online:true});}return true;}
   estatePresence.set(user.id,now());

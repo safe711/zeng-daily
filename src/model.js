@@ -1,4 +1,5 @@
 import {NEW_MODEL_APPAREL} from './estate-outfit-catalog.js';
+import {validateGrowth} from './growth.js';
 import {subscriptionDefaults,validateSubscription} from './subscription.js';
 export const STORAGE_KEY = 'zeng-daily-v1';
 export const RITUAL_KINDS=['morning','noon','evening','gratitude'];
@@ -47,6 +48,7 @@ export function migrateState(state) {
   return state;
 }
 export function validateState(state) {
+  validateGrowth(state?.growth);
   const string = value => typeof value === 'string' && value.length <= 10000;
   if (!state || state.version !== 4 || !state.days || typeof state.days !== 'object' || Array.isArray(state.days)) throw Error('备份版本或结构无效');
   validateSubscription(state.subscription);
