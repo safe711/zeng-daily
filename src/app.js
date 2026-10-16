@@ -1,5 +1,5 @@
 import {preloadOwnerPortrait} from './owner-portrait.js';
-import {growthHostHtml,mountGrowth,growthKeepsView} from './growthview.js';
+import {growthKeepsView} from './growthview.js';
 import {estateHtml,mountEstate,estateKeepsView} from './estate.js';
 import {achievementsHtml,mountAchievements,achievementsKeepView} from './achievements.js';
 import {isOwner,mountOwner,ownerAvatarHtml,createRoleController} from './owner.js';
@@ -70,7 +70,7 @@ const lanBackup=createLanBackup({photos:async()=>(await listPhotos()).filter(use
 const accountClient=createAccountClient({getState:()=>state,onState:next=>{state=next;storageFailed=false;},onAuthenticated:()=>{setHidden(false);preloadOwnerPortrait(()=>lanBackup.readProfilePhoto()).catch(()=>{});},onConnection:paintConnection,onWelcome:profile=>{(async()=>{await startupReady;let portrait=null;if(isOwner(profile)){try{portrait=await preloadOwnerPortrait(()=>lanBackup.readProfilePhoto());}catch{if(accountClient.loggedIn&&accountClient.profile?.id===profile.id)notify('登录成功，主子头像暂未加载，已跳过欢迎框');return;}}if(!hidden&&accountClient.loggedIn&&accountClient.profile?.id===profile.id){notify('');showWelcome(profile,state.servantProfile,portrait?.url);}})();},onChanged:()=>{const logged=accountClient.loggedIn;if(logged&&!accountWasLoggedIn){archiveEditing=false;page=isOwner(accountClient.profile)?'家规':hasPendingDaysMatter()?'档案':'今日';roleController.reset();setTimeout(()=>roleController.refresh(),0);hidden=isAccountLocked();ritualKind=null;taskDetailId=null;shoeTaskId=null;shoeRecordId=null;reportOpen=false;}accountWasLoggedIn=logged;render();},notify});
 let page = '今日';
 let unmountOwner=()=>{};
-let unmountGrowth=()=>{};
+
 const roleController=createRoleController({client:accountClient,getState:()=>state,isVisible:()=>!hidden&&!document.hidden,notify,onBadge:reviews=>{const nav=document.querySelector('nav [data-page="积分"]');if(nav){nav.classList.toggle('has-new-review',reviews.some(r=>r.unread));}for(const cell of content.querySelectorAll('[data-calendar-date]')){cell.querySelector('.review-red-dot')?.remove();if(reviews.some(r=>r.unread&&r.date===cell.dataset.calendarDate))cell.insertAdjacentHTML('beforeend','<i class="review-red-dot"></i>');}}});
 async function ownerPortrait(host){const owner=accountClient.profile?.id;try{const portrait=await preloadOwnerPortrait(()=>lanBackup.readProfilePhoto());if(accountClient.profile?.id!==owner||!host.isConnected)return;for(const holder of host.querySelectorAll('[data-owner-photo]')){if(holder.querySelector('img'))continue;const img=document.createElement('img');img.src=portrait.url;img.alt='曾仪主子';holder.prepend(img);holder.querySelector('.avatar-silhouette')?.remove();}}catch{}}
 setInterval(()=>roleController.refresh(),30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)roleController.refresh();});
@@ -170,7 +170,7 @@ function render() {
   if(hidden&&accountClient.loggedIn){paintLock();return;}
   removeLock();
   unmountOwner();unmountOwner=()=>{};
-  unmountGrowth();unmountGrowth=()=>{};
+
   unmountServant();unmountServant=()=>{};
   content.style.visibility='';
   unmountSubscription();unmountSubscription=()=>{};
@@ -230,8 +230,6 @@ function render() {
   if(page==='家规')unmountFamilyHeaders=mountFamilyHeaders(content);
   if(page==='家规'&&!isOwner(accountClient.profile))unmountIdentity=mountIdentity(content,{loadMedia:id=>accountClient.loadPrivateMedia(id),getAccount:()=>accountClient.profile,getState:()=>state,commit:change=>commit(change,false),upload:(...args)=>lanBackup.uploadIdentity(...args),notify});
   if(page==='档案'){
-    content.insertAdjacentHTML('afterbegin',growthHostHtml(accountClient.profile.id));
-    unmountGrowth=mountGrowth(content.querySelector('[data-growth-member]'),{client:accountClient,notify});
     unmountServant=mountServantProfile(content,{getState:()=>state,getAccount:()=>accountClient.profile,loadMedia:id=>accountClient.loadPrivateMedia(id),commit,notify});
     renderProfilePortrait();
     content.insertAdjacentHTML('beforeend',taskHistoryHtml(state));

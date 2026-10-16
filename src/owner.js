@@ -36,7 +36,7 @@ function mountMemberDays(host,member){
 }
 
 export function mountOwner(host,{client,page,notify,getOwnerPhoto,onBack=()=>{}}){
- function mountGrowthPanels(){if(!valid()||!['档案','奴才管理'].includes(page))return;const group=document.createElement('section');group.className='owner-growth-group';group.innerHTML='<h3>成长与晋升管理</h3>'+members.map(m=>'<details class="archive-fold"><summary>'+esc(m.name)+' · 成长档案</summary>'+growthHostHtml(m.id)+'</details>').join('');host.append(group);for(const panel of group.querySelectorAll('[data-growth-member]')){const fold=panel.parentElement;let mounted=false;fold.addEventListener('toggle',()=>{if(fold.open&&!mounted){mounted=true;cleanups.push(mountGrowth(panel,{client,memberId:panel.dataset.growthMember,notify}));}});}}
+ function mountGrowthPanels(){if(!valid()||page!=='奴才管理')return;const group=document.createElement('section');group.className='owner-growth-group';group.innerHTML='<h3>成长与晋升管理</h3>'+members.map(m=>'<details class="archive-fold"><summary>'+esc(m.name)+' · 成长档案</summary>'+growthHostHtml(m.id)+'</details>').join('');host.append(group);for(const panel of group.querySelectorAll('[data-growth-member]')){const fold=panel.parentElement;let mounted=false;fold.addEventListener('toggle',()=>{if(fold.open&&!mounted){mounted=true;cleanups.push(mountGrowth(panel,{client,memberId:panel.dataset.growthMember,notify}));}});}}
  let alive=true,cleanups=[],dialogs=new Set(),urls=[],members=[],requesting=false;const owner=client.profile.id;
  const valid=()=>alive&&client.profile?.id===owner&&client.loggedIn;
  const request=(path,options)=>client.control(path,options);
