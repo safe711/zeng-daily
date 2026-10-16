@@ -1,14 +1,14 @@
 import {IMPORTED_ORIGINAL_ASSETS} from './estate-imported-originals.js';
 import {anchorBowKnees} from './estate-bow-anchors.js';
 import {EXPANSION_ORIGINAL_ASSETS} from './estate-expansion-originals.js';
-import {wearableGoodsIcon} from './estate-goods.js';
+import {drawWornOriginalCollar} from './estate-goods.js';
 import {ORIGINAL_CHARACTER_ASSETS as BASE_ASSETS} from './estate-character-originals.js';
 import {RIDING_ORIGINAL_ASSETS} from './estate-riding-originals.js';
 import {loadOriginalImage} from './estate-original-image-cache.js';
 import {ESTATE_CATALOG} from './model.js';
 import {isDisasterActor} from './estate-world.js';
 const ASSETS=anchorBowKnees({...BASE_ASSETS,...RIDING_ORIGINAL_ASSETS,...EXPANSION_ORIGINAL_ASSETS,...IMPORTED_ORIGINAL_ASSETS},BASE_ASSETS);
-const images={},frameClips=new WeakMap(),collars=new Map();function collarImage(item){if(!collars.has(item.id)){const image=new Image();image.src=wearableGoodsIcon(item);collars.set(item.id,image);}const image=collars.get(item.id);return image.complete&&image.naturalWidth?image:null;}
+const images={},frameClips=new WeakMap();
 const owner=a=>a.role==='owner'||a.id==='ZENG_OWNER_001';
 const moving=clip=>['walk','run','stop'].includes(clip);
 const loadedJobs=new Map();function loadAsset(id){if(loadedJobs.has(id))return loadedJobs.get(id);const asset=ASSETS[id],job=loadOriginalImage(new URL('../'+asset.file.replace(/^\.\//,''),import.meta.url).href+'?original='+asset.hash).then(im=>{images[id]=im;globalThis.dispatchEvent?.(new Event('estate-character-ready'));return im;});loadedJobs.set(id,job);job.catch(()=>loadedJobs.delete(id));return job;}
@@ -43,7 +43,7 @@ export function drawCharacterFrame(c,a,clip='idle',k=0,{x=a.x,y=a.y,scale=1,flip
  if(frame.sourceClip){let path=frameClips.get(frame);if(!path){path=new Path2D();for(const [px,py,pw,ph]of frame.sourceClip)path.rect(px*frame.scale+dx-33,py*frame.scale+dy-56,pw*frame.scale,ph*frame.scale);frameClips.set(frame,path);}c.clip(path);}
  // Sample the original PNG directly into the final scene. No small atlas or intermediate bitmap.
  c.drawImage(image,sx,sy,w,h,sx*frame.scale+dx-33,sy*frame.scale+dy-56,w*frame.scale,h*frame.scale);
- if(!owner(a)){const item=ESTATE_CATALOG.find(i=>i.id===(a.avatar?.collar||'black-collar')&&i.kind==='collar'),image=item&&collarImage(item),p=frame.neck;if(image&&p&&!((clip==='carry'||selected.asset==='male-kneeling-offer'||selected.asset.startsWith('elder-')||clip==='basin')&&item.id==='black-collar')){c.save();c.translate(p.x-33,p.y-56);c.rotate(frame.neckAngle||0);c.drawImage(image,12,32,104,76,-4,-3,8,5);c.restore();}}
+ if(!owner(a)){const item=ESTATE_CATALOG.find(i=>i.id===(a.avatar?.collar||'black-collar')&&i.kind==='collar'),p=frame.neck;if(item&&p&&!((clip==='carry'||selected.asset==='male-kneeling-offer'||selected.asset.startsWith('elder-')||clip==='basin')&&item.id==='black-collar')){c.save();c.translate(p.x-33,p.y-56);c.rotate(frame.neckAngle||0);drawWornOriginalCollar(c,item,0,0);c.restore();}}
  c.restore();return true;
 }
 export function characterAnchor(a,clip,k,point='neck'){
