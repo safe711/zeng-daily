@@ -8,7 +8,7 @@ ESTATE_SITES.lounge=[{id:'door',name:'休息室入口',x:42,y:267},...LOUNGE_CHA
 // Load original scene paintings once; retain the lightweight drawing while loading.
 const scenePaintings={};
 export const hasEstateBackground=scene=>!!scenePaintings[scene];
-export const estateBackgroundReady=typeof Image==='undefined'?Promise.resolve([]):Promise.all(['bedroom','courtyard','shrine','lounge','gallery'].map(async scene=>{const file=scene==='gallery'?'assets/estate-gallery-flat-v2.png':scene==='lounge'?'assets/scene-originals/lounge-clear-noon.png':'assets/estate-'+scene+'-v1.png';try{scenePaintings[scene]=await loadOriginalImage(new URL('../'+file,import.meta.url).href);return scene;}catch{return null;}}));
+export const estateBackgroundReady=typeof Image==='undefined'?Promise.resolve([]):Promise.all(['bedroom','courtyard','shrine','lounge','gallery'].map(async scene=>{const file=scene==='gallery'?'assets/estate-gallery-flat-v2.png':scene==='lounge'?'assets/scene-originals/lounge-clear-noon.png':scene==='courtyard'?'assets/scene-originals/courtyard-autumn-sunny-noon.png':'assets/scene-originals/'+scene+'-clear-noon.png';try{scenePaintings[scene]=await loadOriginalImage(new URL('../'+file,import.meta.url).href);return scene;}catch{return null;}}));
 const rect=(c,x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));};
 const wood=(c,x,y,w,h)=>{rect(c,x,y,w,h,'#57352c');rect(c,x+3,y+3,w-6,h-6,'#885138');for(let n=8;n<h;n+=12)rect(c,x+5,y+n,w-10,2,n%24?'#b17345':'#704131');};
 const flame=(c,x,y,t)=>{rect(c,x,y,8,17,'#bc4c24');rect(c,x+2,y+Math.floor(t/180)%3,4,13,'#f8ab41');rect(c,x+3,y+6,2,8,'#ffeab0');};
