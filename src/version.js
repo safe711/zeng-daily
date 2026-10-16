@@ -1,6 +1,7 @@
-export const APP_VERSION='2.11.4';
+export const APP_VERSION='2.11.5';
 export const CLIENT_BUILD=`daily-shell-v${APP_VERSION}`;
 export const RELEASES=[
+  {version:'2.11.5',date:'2026-10-16',changes:['默认头像替换为正常的现代男女头像，男性短发蓝衣、女性长发紫衣，完整显示五官和配色。','移除头像上的奴字印章，统一账号、档案和欢迎界面的默认头像样式。']},
   {version:'2.11.4',date:'2026-10-16',changes:['挡灾男女角色统一缩放系数由0.7调整为0.85，磕头、爬行及锁链脖子锚点同步使用相同比例。']},
   {version:'2.11.3',date:'2026-10-16',changes:['移除府邸工具栏中的差事簿按钮。']},
   {version:'2.11.2',date:'2026-10-16',changes:['挡灾男女角色重新生成为大头Q版成年形象，替换偏写实的磕头和爬行动画，保留银发、条纹服装及0.7缩放。','使用原始透明PNG，重新设定逐帧膝盖、脖子与头部锚点，保持磕头落地位置和动作比例。']},
