@@ -1,0 +1,26 @@
+.achievements-panel .achievement-body{padding:16px;background:linear-gradient(145deg,#29261f,#171b19);border-radius:0 0 14px 14px}
+.achievements-panel .achievement-tabs{display:flex;gap:7px;overflow-x:auto;padding-bottom:12px}
+.achievements-panel .achievement-tabs button{flex:0 0 auto;padding:9px 12px;border-radius:9px;background:#201f1a;border:1px solid #695638;color:#c8b890;font-size:12px}
+.achievements-panel .achievement-tabs button[aria-selected=true]{background:#68502d;color:#fff0c9;border-color:#d3ae66}
+.achievements-panel .achievement-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(94px,1fr));gap:10px}
+.achievements-panel .achievement-cell{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;min-width:0;min-height:146px;padding:10px 5px;background:radial-gradient(ellipse at 50% 28%,#68523555,transparent 75%),#24241e;border:1px solid #77603b66;border-radius:12px;box-shadow:inset 0 1px #e6c67e15;margin:0}
+.achievement-badge{display:block;width:100%;height:100%;overflow:hidden;image-rendering:auto!important}
+.achievement-cell .achievement-badge{width:88px;height:88px;max-width:100%;flex-shrink:0;filter:none}
+.achievement-cell.is-locked .achievement-badge,.achievement-hero.is-locked .achievement-badge{filter:grayscale(1);opacity:.42}
+.achievement-cell .achievement-label{font-size:11px;line-height:1.45;color:#e2d3b6;text-align:center}
+.achievement-cell .achievement-tier{font-size:10px;color:#bba47a}
+.achievement-cell.is-locked{opacity:1}
+.achievement-cell:focus-visible{outline:2px solid #f2cf82;outline-offset:3px}
+.achievement-series h4{font-size:13px;letter-spacing:.08em;color:#d2bd94;margin:18px 0 10px}
+.achievement-key{text-align:center;color:#a89c81;font-size:11px;margin-top:15px}
+.achievement-dialog{background:linear-gradient(150deg,#302a20,#181d1b);border:1px solid #9b7b45;border-radius:18px}
+.achievement-hero{padding:20px 14px;background:radial-gradient(ellipse at center,#ad82432b,transparent 70%);text-align:center}
+.achievement-hero .achievement-badge{width:210px;height:210px;max-width:70vw;margin:0 auto 14px;image-rendering:auto}
+.achievement-hero h2{color:#edd5a8;font-size:24px;margin:10px 0}
+.achievement-hero small{color:#c0a675;letter-spacing:.08em}
+.achievement-info{border:1px solid #b0905133;border-radius:12px;padding:12px;background:#13191566}
+.achievement-info>div{padding:7px 0}
+.achievement-dialog progress{accent-color:#c4a060;width:100%;height:8px}
+@media(max-width:420px){.achievements-panel .achievement-body{padding:10px}.achievements-panel .achievement-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.achievements-panel .achievement-cell{min-height:135px}.achievement-cell .achievement-badge{width:78px;height:78px}}
+
+img.achievement-badge{object-fit:contain}
